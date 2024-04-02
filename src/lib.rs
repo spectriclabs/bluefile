@@ -19,6 +19,12 @@ pub enum TypeCode {
 }
 
 #[derive(Debug, Clone)]
+pub struct Format {
+    pub mode: u8,
+    pub ftype: u8,
+}
+
+#[derive(Debug, Clone)]
 pub struct Header {
     pub header_rep: Endianness,
     pub data_rep: Endianness,
@@ -27,6 +33,7 @@ pub struct Header {
     pub data_start: f64,  // in bytes
     pub data_size: f64,  // in bytes
     pub type_code: TypeCode,
+    pub format: Format,
 }
 
 fn is_blue(v: &[u8]) -> bool {
@@ -94,6 +101,7 @@ pub fn parse_header(data: &[u8]) -> Result<Header> {
     let data_start = bytes_to_f64(&data[32..40], header_rep)?;
     let data_size = bytes_to_f64(&data[40..48], header_rep)?;
     let type_code = parse_type_code(&data[48..52], header_rep)?;
+    let format = Format{mode: data[52], ftype: data[53]};
     Ok(Header{
         header_rep,
         data_rep,
@@ -102,6 +110,7 @@ pub fn parse_header(data: &[u8]) -> Result<Header> {
         data_start,
         data_size,
         type_code,
+        format,
     })
 }
 
@@ -136,5 +145,7 @@ mod tests {
         assert_eq!(header.as_ref().unwrap().data_start, 512.0);
         assert_eq!(header.as_ref().unwrap().data_size, 131072.0);
         assert_eq!(header.as_ref().unwrap().type_code, TypeCode::T2000);
+        assert_eq!(header.as_ref().unwrap().format.mode, b'S');
+        assert_eq!(header.as_ref().unwrap().format.ftype, b'D');
     }
 }
