@@ -3,8 +3,10 @@ use std::io::Result;
 use std::io::Error;
 use std::io::Read;
 use std::path::Path;
+use std::str::from_utf8;
 
 const HEADER_SIZE: usize = 512;
+const HEADER_KEYWORD_LENGTH: usize = 92;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Endianness {
@@ -24,6 +26,12 @@ pub struct Format {
     pub ftype: u8,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct HeaderKeyword {
+    pub name: String,
+    pub value: String,
+}
+
 #[derive(Debug, Clone)]
 pub struct Header {
     pub header_rep: Endianness,
@@ -34,6 +42,8 @@ pub struct Header {
     pub data_size: f64,  // in bytes
     pub type_code: TypeCode,
     pub format: Format,
+    pub timecode: f64,  // seconds since Jan. 1, 1950
+    pub keywords: Vec<HeaderKeyword>,
 }
 
 fn is_blue(v: &[u8]) -> bool {
@@ -89,6 +99,40 @@ fn parse_type_code(v: &[u8], endianness: Endianness) -> Result<TypeCode> {
     }
 }
 
+fn parse_header_keywords(keywords: &mut Vec<HeaderKeyword>, v: &[u8], keylength: usize) -> Result<usize> {
+    if keylength > HEADER_KEYWORD_LENGTH {
+        return Err(Error::other("Invalid header keyword field length"));
+    }
+
+    let mut count: usize = 0;
+    let mut name = Vec::new();
+    let mut value = Vec::new();
+    let mut term = b'=';
+
+    for b in &v[0..keylength] {
+        if *b == term && term == b'=' {
+            term = b'\0'
+        } else if *b == term && term == b'\0' && name.len() > 0 {
+            keywords.push(HeaderKeyword{
+                name: from_utf8(&name).unwrap().to_string(),
+                value: from_utf8(&value).unwrap().to_string(),
+            });
+            count += 1;
+            term = b'=';
+            name = Vec::new();
+            value = Vec::new();
+        } else if *b != term && term == b'=' {
+            name.push(*b);
+        } else if *b != term && term == b'\0' {
+            value.push(*b);
+        } else {
+            return Err(Error::other("Could not parse header keywords"));
+        }
+    }
+
+    Ok(count)
+}
+
 pub fn parse_header(data: &[u8]) -> Result<Header> {
     if !is_blue(&data[0..4]) {
         return Err(Error::other("Not a BLUE file"));
@@ -102,7 +146,15 @@ pub fn parse_header(data: &[u8]) -> Result<Header> {
     let data_size = bytes_to_f64(&data[40..48], header_rep)?;
     let type_code = parse_type_code(&data[48..52], header_rep)?;
     let format = Format{mode: data[52], ftype: data[53]};
-    Ok(Header{
+    let timecode = bytes_to_f64(&data[56..64], header_rep)?;
+    let keylength: usize = match bytes_to_u32(&data[160..164], header_rep).unwrap().try_into() {
+        Ok(x) => x,
+        Err(_) => return Err(Error::other("Could not parse keylength")),
+    };
+    let mut keywords = Vec::new();
+    parse_header_keywords(&mut keywords, &data[164..164+HEADER_KEYWORD_LENGTH], keylength)?;
+
+    let header = Header{
         header_rep,
         data_rep,
         ext_start,
@@ -111,7 +163,11 @@ pub fn parse_header(data: &[u8]) -> Result<Header> {
         data_size,
         type_code,
         format,
-    })
+        timecode,
+        keywords,
+    };
+
+    Ok(header)
 }
 
 pub fn read_header(path: &Path) -> Result<Header> {
@@ -147,5 +203,8 @@ mod tests {
         assert_eq!(header.as_ref().unwrap().type_code, TypeCode::T2000);
         assert_eq!(header.as_ref().unwrap().format.mode, b'S');
         assert_eq!(header.as_ref().unwrap().format.ftype, b'D');
+        assert_eq!(header.as_ref().unwrap().timecode, 0.0);
+        assert_eq!(header.as_ref().unwrap().keywords[0], HeaderKeyword{name: "VER".to_string(), value: "1.1".to_string()});
+        assert_eq!(header.as_ref().unwrap().keywords[1], HeaderKeyword{name: "IO".to_string(), value: "X-Midas".to_string()});
     }
 }
