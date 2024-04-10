@@ -1,12 +1,26 @@
+use std::fmt;
 use std::fs::File;
-use std::io::Result;
-use std::io::Error;
 use std::io::Read;
 use std::path::Path;
 use std::str::from_utf8;
 
 const HEADER_SIZE: usize = 512;
 const HEADER_KEYWORD_LENGTH: usize = 92;
+
+// Based on
+// https://doc.rust-lang.org/rust-by-example/error/multiple_error_types/define_error_type.html
+#[derive(Debug)]
+pub struct BluefileError {
+    pub msg: String,
+}
+
+impl fmt::Display for BluefileError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "BluefileError: {0}", self.msg)
+    }
+}
+
+type Result<T> = std::result::Result<T, BluefileError>;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Endianness {
@@ -56,14 +70,14 @@ fn parse_endianness(v: &[u8]) -> Result<Endianness> {
     } else if v[0] == b'I' && v[1] == b'E' && v[2] == b'E' && v[3] == b'E' {
         Ok(Endianness::Big)
     } else {
-        Err(Error::other("Invalid endianness"))
+        Err(BluefileError{msg: "Invalid endianness".to_string()})
     }
 }
 
 fn bytes_to_u32(v: &[u8], endianness: Endianness) -> Result<u32> {
     let b: [u8; 4] = match v.try_into() {
         Ok(x) => x,
-        Err(e) => return Err(Error::other(e)),
+        Err(e) => return Err(BluefileError{msg: format!("Could not convert [u8] to [u8; 4]: {e}")}),
     };
 
     if endianness == Endianness::Little {
@@ -76,7 +90,7 @@ fn bytes_to_u32(v: &[u8], endianness: Endianness) -> Result<u32> {
 fn bytes_to_f64(v: &[u8], endianness: Endianness) -> Result<f64> {
     let b: [u8; 8] = match v.try_into() {
         Ok(x) => x,
-        Err(e) => return Err(Error::other(e)),
+        Err(e) => return Err(BluefileError{msg: format!("Could not convert [u8] to [u8; 8]: {e}")}),
     };
 
     if endianness == Endianness::Little {
@@ -94,14 +108,13 @@ fn parse_type_code(v: &[u8], endianness: Endianness) -> Result<TypeCode> {
     } else if t == 2000 {
         Ok(TypeCode::T2000)
     } else {
-        let msg = format!("Unknown file type code {t}");
-        Err(Error::other(msg))
+        Err(BluefileError{msg: format!("Unknown file type code {t}")})
     }
 }
 
 fn parse_header_keywords(keywords: &mut Vec<HeaderKeyword>, v: &[u8], keylength: usize) -> Result<usize> {
     if keylength > HEADER_KEYWORD_LENGTH {
-        return Err(Error::other("Invalid header keyword field length"));
+        return Err(BluefileError{msg: format!("Invalid header keyword field length {keylength}")});
     }
 
     let mut count: usize = 0;
@@ -126,7 +139,7 @@ fn parse_header_keywords(keywords: &mut Vec<HeaderKeyword>, v: &[u8], keylength:
         } else if *b != term && term == b'\0' {
             value.push(*b);
         } else {
-            return Err(Error::other("Could not parse header keywords"));
+            return Err(BluefileError{msg: "Could not parse header keywords".to_string()});
         }
     }
 
@@ -135,7 +148,7 @@ fn parse_header_keywords(keywords: &mut Vec<HeaderKeyword>, v: &[u8], keylength:
 
 pub fn parse_header(data: &[u8]) -> Result<Header> {
     if !is_blue(&data[0..4]) {
-        return Err(Error::other("Not a BLUE file"));
+        return Err(BluefileError{msg: "Not a BLUE file".to_string()});
     }
 
     let header_rep = parse_endianness(&data[4..8])?;
@@ -149,7 +162,7 @@ pub fn parse_header(data: &[u8]) -> Result<Header> {
     let timecode = bytes_to_f64(&data[56..64], header_rep)?;
     let keylength: usize = match bytes_to_u32(&data[160..164], header_rep).unwrap().try_into() {
         Ok(x) => x,
-        Err(_) => return Err(Error::other("Could not parse keylength")),
+        Err(_) => return Err(BluefileError{msg: "Could not parse keylength".to_string()}),
     };
     let mut keywords = Vec::new();
     parse_header_keywords(&mut keywords, &data[164..164+HEADER_KEYWORD_LENGTH], keylength)?;
@@ -171,13 +184,19 @@ pub fn parse_header(data: &[u8]) -> Result<Header> {
 }
 
 pub fn read_header(path: &Path) -> Result<Header> {
-    let mut file = File::open(path)?;
+    let mut file = match File::open(path) {
+        Ok(x) => x,
+        Err(e) => return Err(BluefileError{msg: format!("Could not open {}: {}", path.display(), e)}),
+    };
+
     let mut data = vec![0_u8; HEADER_SIZE];
-    let n = file.read(&mut data)?;
+    let n = match file.read(&mut data) {
+        Ok(x) => x,
+        Err(e) => return Err(BluefileError{msg: format!("Could not read from {}: {}", path.display(), e)}),
+    };
 
     if n < HEADER_SIZE {
-        let msg = format!("Only read {n} bytes from {}", path.display());
-        return Err(Error::other(msg));
+        return Err(BluefileError{msg: format!("Could only read {n} bytes of {HEADER_SIZE} from {}", path.display())});
     }
 
     let header = parse_header(&data)?;
@@ -194,17 +213,18 @@ mod tests {
         let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         d.push("resources/test/penny.prm");
         let header = read_header(d.as_path());
-        assert_eq!(header.as_ref().unwrap().header_rep, Endianness::Little);
-        assert_eq!(header.as_ref().unwrap().data_rep, Endianness::Little);
-        assert_eq!(header.as_ref().unwrap().ext_start, 257);
-        assert_eq!(header.as_ref().unwrap().ext_size, 320);
-        assert_eq!(header.as_ref().unwrap().data_start, 512.0);
-        assert_eq!(header.as_ref().unwrap().data_size, 131072.0);
-        assert_eq!(header.as_ref().unwrap().type_code, TypeCode::T2000);
-        assert_eq!(header.as_ref().unwrap().format.mode, b'S');
-        assert_eq!(header.as_ref().unwrap().format.ftype, b'D');
-        assert_eq!(header.as_ref().unwrap().timecode, 0.0);
-        assert_eq!(header.as_ref().unwrap().keywords[0], HeaderKeyword{name: "VER".to_string(), value: "1.1".to_string()});
-        assert_eq!(header.as_ref().unwrap().keywords[1], HeaderKeyword{name: "IO".to_string(), value: "X-Midas".to_string()});
+        let href = header.as_ref().unwrap();
+        assert_eq!(href.header_rep, Endianness::Little);
+        assert_eq!(href.data_rep, Endianness::Little);
+        assert_eq!(href.ext_start, 257);
+        assert_eq!(href.ext_size, 320);
+        assert_eq!(href.data_start, 512.0);
+        assert_eq!(href.data_size, 131072.0);
+        assert_eq!(href.type_code, TypeCode::T2000);
+        assert_eq!(href.format.mode, b'S');
+        assert_eq!(href.format.ftype, b'D');
+        assert_eq!(href.timecode, 0.0);
+        assert_eq!(href.keywords[0], HeaderKeyword{name: "VER".to_string(), value: "1.1".to_string()});
+        assert_eq!(href.keywords[1], HeaderKeyword{name: "IO".to_string(), value: "X-Midas".to_string()});
     }
 }
