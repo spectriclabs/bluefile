@@ -1,4 +1,3 @@
-use std::fmt;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
@@ -7,20 +6,21 @@ use std::str::from_utf8;
 const HEADER_SIZE: usize = 512;
 const HEADER_KEYWORD_LENGTH: usize = 92;
 
-// Based on
-// https://doc.rust-lang.org/rust-by-example/error/multiple_error_types/define_error_type.html
 #[derive(Debug)]
-pub struct BluefileError {
-    pub msg: String,
+pub enum Error {
+    NotBlueFileError,
+    InvalidEndianness,
+    ByteConversionError,
+    FileOpenError(String),
+    FileReadError(String),
+    NotEnoughHeaderBytes(usize),
+    UnknownFileTypeCode(u32),
+    InvalidHeaderKeywordLength(usize),
+    HeaderKeywordParseError,
+    HeaderKeywordLengthParseError,
 }
 
-impl fmt::Display for BluefileError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "BluefileError: {0}", self.msg)
-    }
-}
-
-type Result<T> = std::result::Result<T, BluefileError>;
+type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Endianness {
@@ -70,14 +70,14 @@ fn parse_endianness(v: &[u8]) -> Result<Endianness> {
     } else if v[0] == b'I' && v[1] == b'E' && v[2] == b'E' && v[3] == b'E' {
         Ok(Endianness::Big)
     } else {
-        Err(BluefileError{msg: "Invalid endianness".to_string()})
+        Err(Error::InvalidEndianness)
     }
 }
 
 fn bytes_to_u32(v: &[u8], endianness: Endianness) -> Result<u32> {
     let b: [u8; 4] = match v.try_into() {
         Ok(x) => x,
-        Err(e) => return Err(BluefileError{msg: format!("Could not convert [u8] to [u8; 4]: {e}")}),
+        Err(_) => return Err(Error::ByteConversionError),
     };
 
     if endianness == Endianness::Little {
@@ -90,7 +90,7 @@ fn bytes_to_u32(v: &[u8], endianness: Endianness) -> Result<u32> {
 fn bytes_to_f64(v: &[u8], endianness: Endianness) -> Result<f64> {
     let b: [u8; 8] = match v.try_into() {
         Ok(x) => x,
-        Err(e) => return Err(BluefileError{msg: format!("Could not convert [u8] to [u8; 8]: {e}")}),
+        Err(_) => return Err(Error::ByteConversionError),
     };
 
     if endianness == Endianness::Little {
@@ -108,13 +108,13 @@ fn parse_type_code(v: &[u8], endianness: Endianness) -> Result<TypeCode> {
     } else if t == 2000 {
         Ok(TypeCode::T2000)
     } else {
-        Err(BluefileError{msg: format!("Unknown file type code {t}")})
+        Err(Error::UnknownFileTypeCode(t))
     }
 }
 
 fn parse_header_keywords(keywords: &mut Vec<HeaderKeyword>, v: &[u8], keylength: usize) -> Result<usize> {
     if keylength > HEADER_KEYWORD_LENGTH {
-        return Err(BluefileError{msg: format!("Invalid header keyword field length {keylength}")});
+        return Err(Error::InvalidHeaderKeywordLength(keylength));
     }
 
     let mut count: usize = 0;
@@ -139,7 +139,7 @@ fn parse_header_keywords(keywords: &mut Vec<HeaderKeyword>, v: &[u8], keylength:
         } else if *b != term && term == b'\0' {
             value.push(*b);
         } else {
-            return Err(BluefileError{msg: "Could not parse header keywords".to_string()});
+            return Err(Error::HeaderKeywordParseError);
         }
     }
 
@@ -148,7 +148,7 @@ fn parse_header_keywords(keywords: &mut Vec<HeaderKeyword>, v: &[u8], keylength:
 
 pub fn parse_header(data: &[u8]) -> Result<Header> {
     if !is_blue(&data[0..4]) {
-        return Err(BluefileError{msg: "Not a BLUE file".to_string()});
+        return Err(Error::NotBlueFileError);
     }
 
     let header_rep = parse_endianness(&data[4..8])?;
@@ -162,7 +162,7 @@ pub fn parse_header(data: &[u8]) -> Result<Header> {
     let timecode = bytes_to_f64(&data[56..64], header_rep)?;
     let keylength: usize = match bytes_to_u32(&data[160..164], header_rep).unwrap().try_into() {
         Ok(x) => x,
-        Err(_) => return Err(BluefileError{msg: "Could not parse keylength".to_string()}),
+        Err(_) => return Err(Error::HeaderKeywordLengthParseError),
     };
     let mut keywords = Vec::new();
     parse_header_keywords(&mut keywords, &data[164..164+HEADER_KEYWORD_LENGTH], keylength)?;
@@ -186,17 +186,17 @@ pub fn parse_header(data: &[u8]) -> Result<Header> {
 pub fn read_header(path: &Path) -> Result<Header> {
     let mut file = match File::open(path) {
         Ok(x) => x,
-        Err(e) => return Err(BluefileError{msg: format!("Could not open {}: {}", path.display(), e)}),
+        Err(_) => return Err(Error::FileOpenError(path.display().to_string())),
     };
 
     let mut data = vec![0_u8; HEADER_SIZE];
     let n = match file.read(&mut data) {
         Ok(x) => x,
-        Err(e) => return Err(BluefileError{msg: format!("Could not read from {}: {}", path.display(), e)}),
+        Err(_) => return Err(Error::FileReadError(path.display().to_string())),
     };
 
     if n < HEADER_SIZE {
-        return Err(BluefileError{msg: format!("Could only read {n} bytes of {HEADER_SIZE} from {}", path.display())});
+        return Err(Error::NotEnoughHeaderBytes(n))
     }
 
     let header = parse_header(&data)?;
