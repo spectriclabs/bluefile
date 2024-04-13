@@ -32,8 +32,8 @@ pub enum Endianness {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum TypeCode {
-    Type1000,
-    Type2000,
+    Type1000(i32),
+    Type2000(i32),
 }
 
 #[derive(Debug, Clone)]
@@ -162,10 +162,10 @@ fn bytes_to_f64(v: &[u8], endianness: Endianness) -> Result<f64> {
 fn parse_type_code(v: &[u8], endianness: Endianness) -> Result<TypeCode> {
     let t = bytes_to_i32(v, endianness)?;
 
-    if t == 1000 {
-        Ok(TypeCode::Type1000)
-    } else if t == 2000 {
-        Ok(TypeCode::Type2000)
+    if t/1000 == 1 {
+        Ok(TypeCode::Type1000(t))
+    } else if t/1000 == 2 {
+        Ok(TypeCode::Type2000(t))
     } else {
         Err(Error::UnknownFileTypeCode(t))
     }
@@ -301,11 +301,18 @@ mod tests {
         assert_eq!(header.ext_size, 320);
         assert_eq!(header.data_start, 512.0);
         assert_eq!(header.data_size, 131072.0);
-        assert_eq!(header.type_code, TypeCode::Type2000);
+        assert_eq!(header.type_code, TypeCode::Type2000(2000));
         assert_eq!(header.format.mode, b'S');
         assert_eq!(header.format.ftype, b'D');
         assert_eq!(header.timecode, 0.0);
         assert_eq!(header.keywords[0], HeaderKeyword{name: "VER".to_string(), value: "1.1".to_string()});
         assert_eq!(header.keywords[1], HeaderKeyword{name: "IO".to_string(), value: "X-Midas".to_string()});
+        assert_eq!(adjunct.xstart, 0.0);
+        assert_eq!(adjunct.xdelta, 1.0);
+        assert_eq!(adjunct.xunits, 0);
+        assert_eq!(adjunct.subsize, 128);
+        assert_eq!(adjunct.ystart, 0.0);
+        assert_eq!(adjunct.ydelta, 1.0);
+        assert_eq!(adjunct.yunits, 0);
     }
 }
