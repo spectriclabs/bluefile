@@ -3,7 +3,8 @@ use std::io::Read;
 use std::path::Path;
 use std::str::from_utf8;
 
-const HEADER_SIZE: usize = 512;
+const COMMON_HEADER_SIZE: usize = 256;
+const ADJUNCT_HEADER_SIZE: usize = 256;
 const HEADER_KEYWORD_LENGTH: usize = 92;
 
 #[derive(Debug)]
@@ -14,7 +15,8 @@ pub enum Error {
     FileOpenError(String),
     FileReadError(String),
     NotEnoughHeaderBytes(usize),
-    UnknownFileTypeCode(u32),
+    NotEnoughAdjunctHeaderBytes(usize),
+    UnknownFileTypeCode(i32),
     InvalidHeaderKeywordLength(usize),
     HeaderKeywordParseError,
     HeaderKeywordLengthParseError,
@@ -30,8 +32,8 @@ pub enum Endianness {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum TypeCode {
-    T1000,
-    T2000,
+    Type1000,
+    Type2000,
 }
 
 #[derive(Debug, Clone)]
@@ -46,18 +48,75 @@ pub struct HeaderKeyword {
     pub value: String,
 }
 
+pub struct Type1000Adjunct {
+    pub xstart: f64,
+    pub xdelta: f64,
+    pub xunits: i32,
+}
+
+pub struct Type2000Adjunct {
+    pub xstart: f64,
+    pub xdelta: f64,
+    pub xunits: i32,
+    pub subsize: i32,
+    pub ystart: f64,
+    pub ydelta: f64,
+    pub yunits: i32,
+}
+
 #[derive(Debug, Clone)]
 pub struct Header {
-    pub header_rep: Endianness,
-    pub data_rep: Endianness,
-    pub ext_start: u32,  // in 512 byte blocks
-    pub ext_size: u32,  // in bytes
+    pub header_endianness: Endianness,
+    pub data_endianness: Endianness,
+    pub ext_start: i32,  // in 512 byte blocks
+    pub ext_size: i32,  // in bytes
     pub data_start: f64,  // in bytes
     pub data_size: f64,  // in bytes
     pub type_code: TypeCode,
     pub format: Format,
     pub timecode: f64,  // seconds since Jan. 1, 1950
     pub keywords: Vec<HeaderKeyword>,
+}
+
+pub struct Type1000 {
+    pub header: Header,
+    pub adjunct: Type1000Adjunct,
+}
+
+pub struct Type2000 {
+    file: File,
+    pub header: Header,
+    pub adjunct: Type2000Adjunct,
+}
+
+fn parse_type1000_adjunct(v: &[u8], endianness: Endianness) -> Result<Type1000Adjunct> {
+    let xstart: f64 = bytes_to_f64(&v[0..8], endianness)?;
+    let xdelta: f64 = bytes_to_f64(&v[8..16], endianness)?;
+    let xunits: i32 = bytes_to_i32(&v[16..20], endianness)?;
+    Ok(Type1000Adjunct{
+        xstart,
+        xdelta,
+        xunits,
+    })
+}
+
+fn parse_type2000_adjunct(v: &[u8], endianness: Endianness) -> Result<Type2000Adjunct> {
+    let xstart: f64 = bytes_to_f64(&v[0..8], endianness)?;
+    let xdelta: f64 = bytes_to_f64(&v[8..16], endianness)?;
+    let xunits: i32 = bytes_to_i32(&v[16..20], endianness)?;
+    let subsize: i32 = bytes_to_i32(&v[20..24], endianness)?;
+    let ystart: f64 = bytes_to_f64(&v[24..32], endianness)?;
+    let ydelta: f64 = bytes_to_f64(&v[32..40], endianness)?;
+    let yunits: i32 = bytes_to_i32(&v[40..44], endianness)?;
+    Ok(Type2000Adjunct{
+        xstart,
+        xdelta,
+        xunits,
+        subsize,
+        ystart,
+        ydelta,
+        yunits,
+    })
 }
 
 fn is_blue(v: &[u8]) -> bool {
@@ -74,16 +133,16 @@ fn parse_endianness(v: &[u8]) -> Result<Endianness> {
     }
 }
 
-fn bytes_to_u32(v: &[u8], endianness: Endianness) -> Result<u32> {
+fn bytes_to_i32(v: &[u8], endianness: Endianness) -> Result<i32> {
     let b: [u8; 4] = match v.try_into() {
         Ok(x) => x,
         Err(_) => return Err(Error::ByteConversionError),
     };
 
     if endianness == Endianness::Little {
-        Ok(u32::from_le_bytes(b))
+        Ok(i32::from_le_bytes(b))
     } else {
-        Ok(u32::from_be_bytes(b))
+        Ok(i32::from_be_bytes(b))
     }
 }
 
@@ -101,12 +160,12 @@ fn bytes_to_f64(v: &[u8], endianness: Endianness) -> Result<f64> {
 }
 
 fn parse_type_code(v: &[u8], endianness: Endianness) -> Result<TypeCode> {
-    let t = bytes_to_u32(v, endianness)?;
+    let t = bytes_to_i32(v, endianness)?;
 
     if t == 1000 {
-        Ok(TypeCode::T1000)
+        Ok(TypeCode::Type1000)
     } else if t == 2000 {
-        Ok(TypeCode::T2000)
+        Ok(TypeCode::Type2000)
     } else {
         Err(Error::UnknownFileTypeCode(t))
     }
@@ -151,16 +210,16 @@ pub fn parse_header(data: &[u8]) -> Result<Header> {
         return Err(Error::NotBlueFileError);
     }
 
-    let header_rep = parse_endianness(&data[4..8])?;
-    let data_rep = parse_endianness(&data[8..12])?;
-    let ext_start = bytes_to_u32(&data[24..28], header_rep)?;
-    let ext_size = bytes_to_u32(&data[28..32], header_rep)?;
-    let data_start = bytes_to_f64(&data[32..40], header_rep)?;
-    let data_size = bytes_to_f64(&data[40..48], header_rep)?;
-    let type_code = parse_type_code(&data[48..52], header_rep)?;
+    let header_endianness = parse_endianness(&data[4..8])?;
+    let data_endianness = parse_endianness(&data[8..12])?;
+    let ext_start = bytes_to_i32(&data[24..28], header_endianness)?;
+    let ext_size = bytes_to_i32(&data[28..32], header_endianness)?;
+    let data_start = bytes_to_f64(&data[32..40], header_endianness)?;
+    let data_size = bytes_to_f64(&data[40..48], header_endianness)?;
+    let type_code = parse_type_code(&data[48..52], header_endianness)?;
     let format = Format{mode: data[52], ftype: data[53]};
-    let timecode = bytes_to_f64(&data[56..64], header_rep)?;
-    let keylength: usize = match bytes_to_u32(&data[160..164], header_rep).unwrap().try_into() {
+    let timecode = bytes_to_f64(&data[56..64], header_endianness)?;
+    let keylength: usize = match bytes_to_i32(&data[160..164], header_endianness).unwrap().try_into() {
         Ok(x) => x,
         Err(_) => return Err(Error::HeaderKeywordLengthParseError),
     };
@@ -168,8 +227,8 @@ pub fn parse_header(data: &[u8]) -> Result<Header> {
     parse_header_keywords(&mut keywords, &data[164..164+HEADER_KEYWORD_LENGTH], keylength)?;
 
     let header = Header{
-        header_rep,
-        data_rep,
+        header_endianness,
+        data_endianness,
         ext_start,
         ext_size,
         data_start,
@@ -183,24 +242,45 @@ pub fn parse_header(data: &[u8]) -> Result<Header> {
     Ok(header)
 }
 
-pub fn read_header(path: &Path) -> Result<Header> {
-    let mut file = match File::open(path) {
+fn open_file(path: &Path) -> Result<File> {
+    let file = match File::open(path) {
         Ok(x) => x,
         Err(_) => return Err(Error::FileOpenError(path.display().to_string())),
     };
+    Ok(file)
+}
 
-    let mut data = vec![0_u8; HEADER_SIZE];
-    let n = match file.read(&mut data) {
+pub fn init_type2000(path: &Path) -> Result<Type2000> {
+    let mut file = open_file(path)?;
+    let mut header_data = vec![0_u8; COMMON_HEADER_SIZE];
+    let n = match file.read(&mut header_data) {
         Ok(x) => x,
         Err(_) => return Err(Error::FileReadError(path.display().to_string())),
     };
 
-    if n < HEADER_SIZE {
+    if n < COMMON_HEADER_SIZE {
         return Err(Error::NotEnoughHeaderBytes(n))
     }
 
-    let header = parse_header(&data)?;
-    Ok(header)
+    let header = parse_header(&header_data)?;
+
+    let mut adjunct_data = vec![0_u8; ADJUNCT_HEADER_SIZE];
+    let n = match file.read(&mut adjunct_data) {
+        Ok(x) => x,
+        Err(_) => return Err(Error::FileReadError(path.display().to_string())),
+    };
+
+    if n < ADJUNCT_HEADER_SIZE {
+        return Err(Error::NotEnoughAdjunctHeaderBytes(n))
+    }
+
+    let adjunct = parse_type2000_adjunct(&adjunct_data, header.header_endianness)?;
+
+    Ok(Type2000 {
+        file,
+        header,
+        adjunct,
+    })
 }
 
 #[cfg(test)]
@@ -212,19 +292,20 @@ mod tests {
     fn read_header_test() {
         let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         d.push("resources/test/penny.prm");
-        let header = read_header(d.as_path());
-        let href = header.as_ref().unwrap();
-        assert_eq!(href.header_rep, Endianness::Little);
-        assert_eq!(href.data_rep, Endianness::Little);
-        assert_eq!(href.ext_start, 257);
-        assert_eq!(href.ext_size, 320);
-        assert_eq!(href.data_start, 512.0);
-        assert_eq!(href.data_size, 131072.0);
-        assert_eq!(href.type_code, TypeCode::T2000);
-        assert_eq!(href.format.mode, b'S');
-        assert_eq!(href.format.ftype, b'D');
-        assert_eq!(href.timecode, 0.0);
-        assert_eq!(href.keywords[0], HeaderKeyword{name: "VER".to_string(), value: "1.1".to_string()});
-        assert_eq!(href.keywords[1], HeaderKeyword{name: "IO".to_string(), value: "X-Midas".to_string()});
+        let type2000 = init_type2000(d.as_path()).unwrap();
+        let header = type2000.header;
+        let adjunct = type2000.adjunct;
+        assert_eq!(header.header_endianness, Endianness::Little);
+        assert_eq!(header.data_endianness, Endianness::Little);
+        assert_eq!(header.ext_start, 257);
+        assert_eq!(header.ext_size, 320);
+        assert_eq!(header.data_start, 512.0);
+        assert_eq!(header.data_size, 131072.0);
+        assert_eq!(header.type_code, TypeCode::Type2000);
+        assert_eq!(header.format.mode, b'S');
+        assert_eq!(header.format.ftype, b'D');
+        assert_eq!(header.timecode, 0.0);
+        assert_eq!(header.keywords[0], HeaderKeyword{name: "VER".to_string(), value: "1.1".to_string()});
+        assert_eq!(header.keywords[1], HeaderKeyword{name: "IO".to_string(), value: "X-Midas".to_string()});
     }
 }
