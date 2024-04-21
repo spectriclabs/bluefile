@@ -56,10 +56,6 @@ pub struct HeaderKeyword {
     pub value: String,
 }
 
-struct ExtHeader {
-    position: usize,
-}
-
 pub trait ExtHeaderParser {
     fn get_ext_size(&self) -> usize;
     fn get_ext_start(&self) -> usize;
@@ -71,12 +67,12 @@ pub trait ExtHeaderParser {
         let mut consumed: usize = 0;
         let mut file = self.get_file();
 
-        while consumed < self.get_ext_size() {
-            match file.seek(SeekFrom::Start(self.get_ext_start() as u64)) {
-                Ok(x) => x,
-                Err(_) => return Err(Error::ExtHeaderSeekError),
-            };
+        match file.seek(SeekFrom::Start(self.get_ext_start() as u64)) {
+            Ok(x) => x,
+            Err(_) => return Err(Error::ExtHeaderSeekError),
+        };
 
+        while consumed < self.get_ext_size() {
             let mut key_length_buf = vec![0_u8; EXT_KEYWORD_LENGTH];
             consumed += match file.read(&mut key_length_buf) {
                 Ok(x) => x,
@@ -101,27 +97,28 @@ pub trait ExtHeaderParser {
 pub struct ExtKeyword {
     pub length: usize,
     pub tag: String,
-    pub format: u8,
-    pub data: Vec<u8>,
+    pub format: char,
+    pub value: Vec<u8>,
 }
 
 fn parse_ext_keyword(v: &[u8], key_length: usize, endianness: Endianness) -> Result<ExtKeyword> {
-    let extra_length = bytes_to_i16(&v[4..6], endianness)? as usize;  // length of the keyword header, tag & padding
-    let tag_length = v[6] as usize;  // length of just the tag
-    let format = v[7];
+    // Note that 4 is subtracted from the offsets because key_length was already read
+    let extra_length = bytes_to_i16(&v[0..2], endianness)? as usize;  // length of the keyword header, tag & padding
+    let tag_length = v[2] as usize;  // length of just the tag
+    let format = v[3] as char;
 
-    let data_offset: usize = 8;
-    let data_length: usize = key_length - extra_length;
-    let tag_offset: usize = data_offset + data_length;
+    let value_offset: usize = 4;
+    let value_length: usize = key_length - extra_length;
+    let tag_offset: usize = value_offset + value_length;
 
     let tag = from_utf8(&v[tag_offset..tag_offset+tag_length]).unwrap().to_string();
-    let data = v[data_offset..data_offset+data_length].to_vec();
+    let value = v[value_offset..value_offset+value_length].to_vec();
 
     Ok(ExtKeyword{
         length: key_length,
         tag,
         format,
-        data,
+        value,
     })
 }
 
@@ -414,7 +411,7 @@ mod tests {
         let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         d.push("resources/test/penny.prm");
         let type2000 = init_type2000(d.as_path()).unwrap();
-        let header = type2000.header;
+        let header = &type2000.header;
 
         assert_eq!(header.header_endianness, Endianness::Little);
         assert_eq!(header.data_endianness, Endianness::Little);
@@ -429,7 +426,7 @@ mod tests {
         assert_eq!(header.keywords[0], HeaderKeyword{name: "VER".to_string(), value: "1.1".to_string()});
         assert_eq!(header.keywords[1], HeaderKeyword{name: "IO".to_string(), value: "X-Midas".to_string()});
 
-        let adjunct = type2000.adjunct;
+        let adjunct = &type2000.adjunct;
         assert_eq!(adjunct.xstart, 0.0);
         assert_eq!(adjunct.xdelta, 1.0);
         assert_eq!(adjunct.xunits, 0);
@@ -437,5 +434,16 @@ mod tests {
         assert_eq!(adjunct.ystart, 0.0);
         assert_eq!(adjunct.ydelta, 1.0);
         assert_eq!(adjunct.yunits, 0);
+
+        let ext_keywords = &type2000.parse_ext_header().unwrap();
+        assert_eq!(ext_keywords.len(), 5);
+
+        assert_eq!(ext_keywords[0].tag, "COMMENT".to_string());
+        assert_eq!(ext_keywords[0].format, 'A');
+        assert_eq!(from_utf8(&ext_keywords[0].value).unwrap(), "Demo data for XRTSURFACE/STAY".to_string());
+
+        assert_eq!(ext_keywords[4].tag, "COMMENT3".to_string());
+        assert_eq!(ext_keywords[4].format, 'A');
+        assert_eq!(from_utf8(&ext_keywords[4].value).unwrap(), "XRTSURF/STAY/NOLAB/XC=5,PENNY,1.0,255.0,4,128,16,0,10,2".to_string());
     }
 }
