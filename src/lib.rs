@@ -1,3 +1,4 @@
+use std::convert::TryFrom;
 use std::fs::File;
 use std::io::Read;
 use std::io::Seek;
@@ -7,6 +8,7 @@ use std::str::from_utf8;
 
 const COMMON_HEADER_SIZE: usize = 256;
 const ADJUNCT_HEADER_SIZE: usize = 256;
+const HEADER_KEYWORD_OFFSET: usize = 164;
 const HEADER_KEYWORD_LENGTH: usize = 92;
 const EXT_KEYWORD_LENGTH: usize = 4;
 
@@ -228,13 +230,17 @@ fn is_blue(v: &[u8]) -> bool {
     v[0] == b'B' && v[1] == b'L' && v[2] == b'U' && v[3] == b'E'
 }
 
-fn parse_endianness(v: &[u8]) -> Result<Endianness> {
-    if v[0] == b'E' && v[1] == b'E' && v[2] == b'E' && v[3] == b'I' {
-        Ok(Endianness::Little)
-    } else if v[0] == b'I' && v[1] == b'E' && v[2] == b'E' && v[3] == b'E' {
-        Ok(Endianness::Big)
-    } else {
-        Err(Error::InvalidEndianness)
+impl TryFrom<&[u8]> for Endianness {
+    type Error = Error;
+
+    fn try_from(v: &[u8]) -> std::result::Result<Self, Self::Error> {
+        if v[0] == b'E' && v[1] == b'E' && v[2] == b'E' && v[3] == b'I' {
+            Ok(Endianness::Little)
+        } else if v[0] == b'I' && v[1] == b'E' && v[2] == b'E' && v[3] == b'E' {
+            Ok(Endianness::Big)
+        } else {
+            Err(Error::InvalidEndianness)
+        }
     }
 }
 
@@ -301,8 +307,10 @@ fn parse_header_keywords(keywords: &mut Vec<HeaderKeyword>, v: &[u8], keylength:
 
     for b in &v[0..keylength] {
         if *b == term && term == b'=' {
+            // found equal, now look for null terminator
             term = b'\0'
-        } else if *b == term && term == b'\0' && name.len() > 0 {
+        } else if *b == term && term == b'\0' && !name.is_empty() {
+            // found null terminator, add new keyword
             keywords.push(HeaderKeyword{
                 name: from_utf8(&name).unwrap().to_string(),
                 value: from_utf8(&value).unwrap().to_string(),
@@ -311,11 +319,17 @@ fn parse_header_keywords(keywords: &mut Vec<HeaderKeyword>, v: &[u8], keylength:
             term = b'=';
             name = Vec::new();
             value = Vec::new();
+        } else if term == b'=' && *b == b'\0' {
+            // encountered null terminator when looking for equal
+            return Err(Error::HeaderKeywordParseError);
         } else if *b != term && term == b'=' {
+            // add character to name until we find equal
             name.push(*b);
         } else if *b != term && term == b'\0' {
+            // add character to value until we find null terminator
             value.push(*b);
         } else {
+            // unexpected state
             return Err(Error::HeaderKeywordParseError);
         }
     }
@@ -328,8 +342,8 @@ pub fn parse_header(data: &[u8]) -> Result<Header> {
         return Err(Error::NotBlueFileError);
     }
 
-    let header_endianness = parse_endianness(&data[4..8])?;
-    let data_endianness = parse_endianness(&data[8..12])?;
+    let header_endianness = Endianness::try_from(&data[4..8])?;
+    let data_endianness = Endianness::try_from(&data[8..12])?;
     let ext_start = (bytes_to_i32(&data[24..28], header_endianness)? as usize) * 512;
     let ext_size = bytes_to_i32(&data[28..32], header_endianness)? as usize;
     let data_start = bytes_to_f64(&data[32..40], header_endianness)?;
@@ -342,7 +356,7 @@ pub fn parse_header(data: &[u8]) -> Result<Header> {
         Err(_) => return Err(Error::HeaderKeywordLengthParseError),
     };
     let mut keywords = Vec::new();
-    parse_header_keywords(&mut keywords, &data[164..164+HEADER_KEYWORD_LENGTH], keylength)?;
+    parse_header_keywords(&mut keywords, &data[HEADER_KEYWORD_OFFSET..HEADER_KEYWORD_OFFSET+HEADER_KEYWORD_LENGTH], keylength)?;
 
     let header = Header{
         header_endianness,
