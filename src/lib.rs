@@ -6,7 +6,9 @@ use std::io::SeekFrom;
 use std::path::Path;
 use std::str::from_utf8;
 
+const COMMON_HEADER_OFFSET: usize = 0;
 const COMMON_HEADER_SIZE: usize = 256;
+const ADJUNCT_HEADER_OFFSET: usize = 256;
 const ADJUNCT_HEADER_SIZE: usize = 256;
 const HEADER_KEYWORD_OFFSET: usize = 164;
 const HEADER_KEYWORD_LENGTH: usize = 92;
@@ -15,24 +17,25 @@ const EXT_KEYWORD_LENGTH: usize = 4;
 #[derive(Debug)]
 pub enum Error {
     NotBlueFileError,
+    TypeCodeMismatchError,
     InvalidEndianness,
     ByteConversionError,
     FileOpenError(String),
-    FileReadError(String),
+    FileReadError,
     NotEnoughHeaderBytes(usize),
     NotEnoughAdjunctHeaderBytes(usize),
     UnknownFileTypeCode(i32),
     InvalidHeaderKeywordLength(usize),
+    HeaderSeekError,
+    AdjunctHeaderSeekError,
+    ExtHeaderSeekError,
     HeaderKeywordParseError,
     HeaderKeywordLengthParseError,
     ExtHeaderKeywordLengthParseError,
     ExtHeaderKeywordReadError,
-    ExtHeaderSeekError,
     ExtSizeParseError,
     ExtStartParseError,
 }
-
-type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Endianness {
@@ -58,13 +61,32 @@ pub struct HeaderKeyword {
     pub value: String,
 }
 
-pub trait ExtHeaderParser {
+#[derive(Debug, Clone)]
+pub struct Header {
+    pub header_endianness: Endianness,
+    pub data_endianness: Endianness,
+    pub ext_start: usize,  // in bytes (multiple of 512 byte blocks)
+    pub ext_size: usize,  // in bytes
+    pub data_start: f64,  // in bytes
+    pub data_size: f64,  // in bytes
+    pub type_code: TypeCode,
+    pub format: Format,
+    pub timecode: f64,  // seconds since Jan. 1, 1950
+    pub keywords: Vec<HeaderKeyword>,
+}
+
+type Result<T> = std::result::Result<T, Error>;
+
+pub trait BluefileReader {
+    fn new(path: &Path) -> Result<Self> where Self: Sized;
+    type AdjunctHeader;
+    fn read_adjunct_header(&self) -> Result<Self::AdjunctHeader>;
     fn get_ext_size(&self) -> usize;
     fn get_ext_start(&self) -> usize;
     fn get_file(&self) -> &File;
     fn get_header_endianness(&self) -> Endianness;
 
-    fn parse_ext_header(&self) -> Result<Vec<ExtKeyword>> {
+    fn read_ext_header(&self) -> Result<Vec<ExtKeyword>> {
         let mut keywords = Vec::new();
         let mut consumed: usize = 0;
         let mut file = self.get_file();
@@ -95,6 +117,177 @@ pub trait ExtHeaderParser {
         Ok(keywords)
     }
 }
+
+fn read_header(mut file: &File) -> Result<Header> {
+    match file.seek(SeekFrom::Start(COMMON_HEADER_OFFSET as u64)) {
+        Ok(x) => x,
+        Err(_) => return Err(Error::HeaderSeekError),
+    };
+
+    let mut header_data = vec![0_u8; COMMON_HEADER_SIZE];
+    let n = match file.read(&mut header_data) {
+        Ok(x) => x,
+        Err(_) => return Err(Error::FileReadError),
+    };
+
+    if n < COMMON_HEADER_SIZE {
+        return Err(Error::NotEnoughHeaderBytes(n))
+    }
+
+    let header = parse_header(&header_data)?;
+    Ok(header)
+}
+
+pub struct Type1000Reader {
+    file: File,
+    header: Header,
+}
+
+pub struct Type2000Reader {
+    file: File,
+    header: Header,
+}
+
+impl BluefileReader for Type1000Reader {
+    fn new(path: &Path) -> Result<Self> {
+        let file = open_file(path)?;
+        let header = read_header(&file)?;
+
+        match header.type_code {
+            TypeCode::Type1000(_) => Ok(Self {file, header}),
+            _ => Err(Error::TypeCodeMismatchError),
+        }
+    }
+
+    type AdjunctHeader = Type1000Adjunct;
+
+    fn read_adjunct_header(&self) -> Result<Self::AdjunctHeader> {
+        let mut file = self.get_file();
+
+        match file.seek(SeekFrom::Start(ADJUNCT_HEADER_OFFSET as u64)) {
+            Ok(x) => x,
+            Err(_) => return Err(Error::AdjunctHeaderSeekError),
+        };
+
+        let mut data = vec![0_u8; ADJUNCT_HEADER_SIZE];
+        let n = match file.read(&mut data) {
+            Ok(x) => x,
+            Err(_) => return Err(Error::FileReadError),
+        };
+
+        if n < ADJUNCT_HEADER_SIZE {
+            return Err(Error::NotEnoughAdjunctHeaderBytes(n))
+        }
+
+        let endianness = self.get_header_endianness();
+        let xstart: f64 = bytes_to_f64(&data[0..8], endianness)?;
+        let xdelta: f64 = bytes_to_f64(&data[8..16], endianness)?;
+        let xunits: i32 = bytes_to_i32(&data[16..20], endianness)?;
+
+        Ok(Type1000Adjunct{
+            xstart,
+            xdelta,
+            xunits,
+        })
+    }
+
+    fn get_ext_size(&self) -> usize {
+        self.header.ext_size
+    }
+
+    fn get_ext_start(&self) -> usize {
+        self.header.ext_start
+    }
+
+    fn get_file(&self) -> &File {
+        &self.file
+    }
+
+    fn get_header_endianness(&self) -> Endianness {
+        self.header.header_endianness
+    }
+}
+
+impl BluefileReader for Type2000Reader {
+    fn new(path: &Path) -> Result<Self> {
+        let file = open_file(path)?;
+        let header = read_header(&file)?;
+
+        match header.type_code {
+            TypeCode::Type2000(_) => Ok(Self {file, header}),
+            _ => Err(Error::TypeCodeMismatchError),
+        }
+    }
+
+    type AdjunctHeader = Type2000Adjunct;
+
+    fn read_adjunct_header(&self) -> Result<Self::AdjunctHeader> {
+        let mut file = self.get_file();
+
+        match file.seek(SeekFrom::Start(ADJUNCT_HEADER_OFFSET as u64)) {
+            Ok(x) => x,
+            Err(_) => return Err(Error::AdjunctHeaderSeekError),
+        };
+
+        let mut data = vec![0_u8; ADJUNCT_HEADER_SIZE];
+        let n = match file.read(&mut data) {
+            Ok(x) => x,
+            Err(_) => return Err(Error::FileReadError),
+        };
+
+        if n < ADJUNCT_HEADER_SIZE {
+            return Err(Error::NotEnoughAdjunctHeaderBytes(n))
+        }
+
+        let endianness = self.get_header_endianness();
+        let xstart: f64 = bytes_to_f64(&data[0..8], endianness)?;
+        let xdelta: f64 = bytes_to_f64(&data[8..16], endianness)?;
+        let xunits: i32 = bytes_to_i32(&data[16..20], endianness)?;
+        let subsize: i32 = bytes_to_i32(&data[20..24], endianness)?;
+        let ystart: f64 = bytes_to_f64(&data[24..32], endianness)?;
+        let ydelta: f64 = bytes_to_f64(&data[32..40], endianness)?;
+        let yunits: i32 = bytes_to_i32(&data[40..44], endianness)?;
+
+        Ok(Type2000Adjunct{
+            xstart,
+            xdelta,
+            xunits,
+            subsize,
+            ystart,
+            ydelta,
+            yunits,
+        })
+    }
+
+    fn get_ext_size(&self) -> usize {
+        self.header.ext_size
+    }
+
+    fn get_ext_start(&self) -> usize {
+        self.header.ext_start
+    }
+
+    fn get_file(&self) -> &File {
+        &self.file
+    }
+
+    fn get_header_endianness(&self) -> Endianness {
+        self.header.header_endianness
+    }
+}
+
+fn open_file(path: &Path) -> Result<File> {
+    let file = match File::open(path) {
+        Ok(x) => x,
+        Err(_) => return Err(Error::FileOpenError(path.display().to_string())),
+    };
+    Ok(file)
+}
+
+//fn new_reader(path: &Path) -> Result<Box<dyn BluefileReader>> {
+//    let file = open_file(path)?;
+//    let header = read_header(&file);
+//}
 
 pub struct ExtKeyword {
     pub length: usize,
@@ -138,92 +331,6 @@ pub struct Type2000Adjunct {
     pub ystart: f64,
     pub ydelta: f64,
     pub yunits: i32,
-}
-
-#[derive(Debug, Clone)]
-pub struct Header {
-    pub header_endianness: Endianness,
-    pub data_endianness: Endianness,
-    pub ext_start: usize,  // in bytes (multiple of 512 byte blocks)
-    pub ext_size: usize,  // in bytes
-    pub data_start: f64,  // in bytes
-    pub data_size: f64,  // in bytes
-    pub type_code: TypeCode,
-    pub format: Format,
-    pub timecode: f64,  // seconds since Jan. 1, 1950
-    pub keywords: Vec<HeaderKeyword>,
-}
-
-pub struct Type1000 {
-    file: File,
-    pub header: Header,
-    pub adjunct: Type1000Adjunct,
-}
-
-pub struct Type2000 {
-    file: File,
-    pub header: Header,
-    pub adjunct: Type2000Adjunct,
-}
-
-impl ExtHeaderParser for Type1000 {
-    fn get_ext_size(&self) -> usize {
-        self.header.ext_size
-    }
-    fn get_ext_start(&self) -> usize {
-        self.header.ext_start
-    }
-    fn get_file(&self) -> &File {
-        &self.file
-    }
-    fn get_header_endianness(&self) -> Endianness {
-        self.header.header_endianness
-    }
-}
-
-impl ExtHeaderParser for Type2000 {
-    fn get_ext_size(&self) -> usize {
-        self.header.ext_size
-    }
-    fn get_ext_start(&self) -> usize {
-        self.header.ext_start
-    }
-    fn get_file(&self) -> &File {
-        &self.file
-    }
-    fn get_header_endianness(&self) -> Endianness {
-        self.header.header_endianness
-    }
-}
-
-fn parse_type1000_adjunct(v: &[u8], endianness: Endianness) -> Result<Type1000Adjunct> {
-    let xstart: f64 = bytes_to_f64(&v[0..8], endianness)?;
-    let xdelta: f64 = bytes_to_f64(&v[8..16], endianness)?;
-    let xunits: i32 = bytes_to_i32(&v[16..20], endianness)?;
-    Ok(Type1000Adjunct{
-        xstart,
-        xdelta,
-        xunits,
-    })
-}
-
-fn parse_type2000_adjunct(v: &[u8], endianness: Endianness) -> Result<Type2000Adjunct> {
-    let xstart: f64 = bytes_to_f64(&v[0..8], endianness)?;
-    let xdelta: f64 = bytes_to_f64(&v[8..16], endianness)?;
-    let xunits: i32 = bytes_to_i32(&v[16..20], endianness)?;
-    let subsize: i32 = bytes_to_i32(&v[20..24], endianness)?;
-    let ystart: f64 = bytes_to_f64(&v[24..32], endianness)?;
-    let ydelta: f64 = bytes_to_f64(&v[32..40], endianness)?;
-    let yunits: i32 = bytes_to_i32(&v[40..44], endianness)?;
-    Ok(Type2000Adjunct{
-        xstart,
-        xdelta,
-        xunits,
-        subsize,
-        ystart,
-        ydelta,
-        yunits,
-    })
 }
 
 fn is_blue(v: &[u8]) -> bool {
@@ -374,58 +481,17 @@ pub fn parse_header(data: &[u8]) -> Result<Header> {
     Ok(header)
 }
 
-fn open_file(path: &Path) -> Result<File> {
-    let file = match File::open(path) {
-        Ok(x) => x,
-        Err(_) => return Err(Error::FileOpenError(path.display().to_string())),
-    };
-    Ok(file)
-}
-
-pub fn init_type2000(path: &Path) -> Result<Type2000> {
-    let mut file = open_file(path)?;
-    let mut header_data = vec![0_u8; COMMON_HEADER_SIZE];
-    let n = match file.read(&mut header_data) {
-        Ok(x) => x,
-        Err(_) => return Err(Error::FileReadError(path.display().to_string())),
-    };
-
-    if n < COMMON_HEADER_SIZE {
-        return Err(Error::NotEnoughHeaderBytes(n))
-    }
-
-    let header = parse_header(&header_data)?;
-
-    let mut adjunct_data = vec![0_u8; ADJUNCT_HEADER_SIZE];
-    let n = match file.read(&mut adjunct_data) {
-        Ok(x) => x,
-        Err(_) => return Err(Error::FileReadError(path.display().to_string())),
-    };
-
-    if n < ADJUNCT_HEADER_SIZE {
-        return Err(Error::NotEnoughAdjunctHeaderBytes(n))
-    }
-
-    let adjunct = parse_type2000_adjunct(&adjunct_data, header.header_endianness)?;
-
-    Ok(Type2000 {
-        file,
-        header,
-        adjunct,
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::path::PathBuf;
 
     #[test]
-    fn read_header_test() {
+    fn read_type2000_test() {
         let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         d.push("resources/test/penny.prm");
-        let type2000 = init_type2000(d.as_path()).unwrap();
-        let header = &type2000.header;
+        let reader = Type2000Reader::new(d.as_path()).unwrap();
+        let header = &reader.header;
 
         assert_eq!(header.header_endianness, Endianness::Little);
         assert_eq!(header.data_endianness, Endianness::Little);
@@ -440,7 +506,7 @@ mod tests {
         assert_eq!(header.keywords[0], HeaderKeyword{name: "VER".to_string(), value: "1.1".to_string()});
         assert_eq!(header.keywords[1], HeaderKeyword{name: "IO".to_string(), value: "X-Midas".to_string()});
 
-        let adjunct = &type2000.adjunct;
+        let adjunct = &reader.read_adjunct_header().unwrap();
         assert_eq!(adjunct.xstart, 0.0);
         assert_eq!(adjunct.xdelta, 1.0);
         assert_eq!(adjunct.xunits, 0);
@@ -449,7 +515,7 @@ mod tests {
         assert_eq!(adjunct.ydelta, 1.0);
         assert_eq!(adjunct.yunits, 0);
 
-        let ext_keywords = &type2000.parse_ext_header().unwrap();
+        let ext_keywords = &reader.read_ext_header().unwrap();
         assert_eq!(ext_keywords.len(), 5);
 
         assert_eq!(ext_keywords[0].tag, "COMMENT".to_string());
