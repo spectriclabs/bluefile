@@ -1,0 +1,20 @@
+#[derive(Debug)]
+pub enum Error {
+    NotBlueFileError,
+    TypeCodeMismatchError,
+    InvalidEndianness,
+    ByteConversionError,
+    FileOpenError(String),
+    FileReadError,
+    NotEnoughHeaderBytes(usize),
+    NotEnoughAdjunctHeaderBytes(usize),
+    UnknownFileTypeCode(i32),
+    InvalidHeaderKeywordLength(usize),
+    HeaderSeekError,
+    AdjunctHeaderSeekError,
+    ExtHeaderSeekError,
+    HeaderKeywordParseError,
+    HeaderKeywordLengthParseError,
+    ExtHeaderKeywordLengthParseError,
+    ExtHeaderKeywordReadError,
+}
