@@ -1,11 +1,11 @@
 use std::fs::File;
-use std::path::Path;
+use std::path::PathBuf;
 
 use crate::endian::Endianness;
 use crate::error::Error;
 use crate::result::Result;
 
-pub(crate) fn open_file(path: &Path) -> Result<File> {
+pub(crate) fn open_file(path: &PathBuf) -> Result<File> {
     let file = match File::open(path) {
         Ok(x) => x,
         Err(_) => return Err(Error::FileOpenError(path.display().to_string())),

@@ -2,13 +2,13 @@ use std::fs::File;
 use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
-use std::path::Path;
+use std::path::PathBuf;
 use std::str::from_utf8;
 
 use crate::endian::Endianness;
 use crate::error::Error;
 use crate::result::Result;
-use crate::util::{bytes_to_i16, bytes_to_i32};
+use crate::util::{bytes_to_i16, bytes_to_i32, open_file};
 
 pub(crate) const ADJUNCT_HEADER_OFFSET: usize = 256;
 pub(crate) const ADJUNCT_HEADER_SIZE: usize = 256;
@@ -28,18 +28,18 @@ pub struct Format {
 }
 
 pub trait BluefileReader {
-    fn new(path: &Path) -> Result<Self> where Self: Sized;
-    type AdjunctHeader;
-    fn read_adjunct_header(&self) -> Result<Self::AdjunctHeader>;
+    fn new(path: &PathBuf) -> Result<Self> where Self: Sized;
     fn get_ext_size(&self) -> usize;
     fn get_ext_start(&self) -> usize;
-    fn get_file(&self) -> &File;
+    fn get_ext_path(&self) -> &PathBuf;
+    fn get_data_path(&self) -> &PathBuf;
     fn get_header_endianness(&self) -> Endianness;
+    fn get_data_endianness(&self) -> Endianness;
 
     fn read_ext_header(&self) -> Result<Vec<ExtKeyword>> {
+        let mut file = open_file(&self.get_ext_path())?;
         let mut keywords = Vec::new();
         let mut consumed: usize = 0;
-        let mut file = self.get_file();
 
         match file.seek(SeekFrom::Start(self.get_ext_start() as u64)) {
             Ok(x) => x,

@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
-use std::path::Path;
+use std::path::PathBuf;
 
 use crate::bluefile::{
     ADJUNCT_HEADER_OFFSET,
@@ -27,25 +27,21 @@ pub struct Type1000Adjunct {
 }
 
 pub struct Type1000Reader {
-    file: File,
+    ext_path: PathBuf,
+    data_path: PathBuf,
     header: Header,
+    adj_header: Type1000Adjunct,
 }
 
 impl BluefileReader for Type1000Reader {
-    fn new(path: &Path) -> Result<Self> {
-        let file = open_file(path)?;
+    fn new(path: &PathBuf) -> Result<Self> {
+        let mut file = open_file(&path)?;
         let header = read_header(&file)?;
 
         match header.type_code {
-            TypeCode::Type1000(_) => Ok(Self {file, header}),
-            _ => Err(Error::TypeCodeMismatchError),
-        }
-    }
-
-    type AdjunctHeader = Type1000Adjunct;
-
-    fn read_adjunct_header(&self) -> Result<Self::AdjunctHeader> {
-        let mut file = self.get_file();
+            TypeCode::Type1000(x) => x,
+            _ => return Err(Error::TypeCodeMismatchError),
+        };
 
         match file.seek(SeekFrom::Start(ADJUNCT_HEADER_OFFSET as u64)) {
             Ok(x) => x,
@@ -62,15 +58,23 @@ impl BluefileReader for Type1000Reader {
             return Err(Error::NotEnoughAdjunctHeaderBytes(n))
         }
 
-        let endianness = self.get_header_endianness();
+        let endianness = header.header_endianness;
         let xstart: f64 = bytes_to_f64(&data[0..8], endianness)?;
         let xdelta: f64 = bytes_to_f64(&data[8..16], endianness)?;
         let xunits: i32 = bytes_to_i32(&data[16..20], endianness)?;
 
-        Ok(Type1000Adjunct{
+        let adj_header = Type1000Adjunct{
             xstart,
             xdelta,
             xunits,
+        };
+
+        // TODO: Add support for detatched header path
+        Ok(Self {
+            ext_path: path.clone(),
+            data_path: path.clone(),
+            header,
+            adj_header,
         })
     }
 
@@ -82,11 +86,19 @@ impl BluefileReader for Type1000Reader {
         self.header.ext_start
     }
 
-    fn get_file(&self) -> &File {
-        &self.file
+    fn get_ext_path(&self) -> &PathBuf {
+        &self.ext_path
+    }
+
+    fn get_data_path(&self) -> &PathBuf {
+        &self.data_path
     }
 
     fn get_header_endianness(&self) -> Endianness {
         self.header.header_endianness
+    }
+
+    fn get_data_endianness(&self) -> Endianness {
+        self.header.data_endianness
     }
 }

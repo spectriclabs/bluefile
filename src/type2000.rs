@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
-use std::path::Path;
+use std::path::PathBuf;
 
 use crate::bluefile::{
     ADJUNCT_HEADER_OFFSET,
@@ -31,25 +31,21 @@ pub struct Type2000Adjunct {
 }
 
 pub struct Type2000Reader {
-    file: File,
+    ext_path: PathBuf,
+    data_path: PathBuf,
     header: Header,
+    adj_header: Type2000Adjunct,
 }
 
 impl BluefileReader for Type2000Reader {
-    fn new(path: &Path) -> Result<Self> {
-        let file = open_file(path)?;
+    fn new(path: &PathBuf) -> Result<Self> {
+        let mut file = open_file(&path)?;
         let header = read_header(&file)?;
 
         match header.type_code {
-            TypeCode::Type2000(_) => Ok(Self {file, header}),
-            _ => Err(Error::TypeCodeMismatchError),
-        }
-    }
-
-    type AdjunctHeader = Type2000Adjunct;
-
-    fn read_adjunct_header(&self) -> Result<Self::AdjunctHeader> {
-        let mut file = self.get_file();
+            TypeCode::Type2000(x) => x,
+            _ => return Err(Error::TypeCodeMismatchError),
+        };
 
         match file.seek(SeekFrom::Start(ADJUNCT_HEADER_OFFSET as u64)) {
             Ok(x) => x,
@@ -66,7 +62,7 @@ impl BluefileReader for Type2000Reader {
             return Err(Error::NotEnoughAdjunctHeaderBytes(n))
         }
 
-        let endianness = self.get_header_endianness();
+        let endianness = header.header_endianness;
         let xstart: f64 = bytes_to_f64(&data[0..8], endianness)?;
         let xdelta: f64 = bytes_to_f64(&data[8..16], endianness)?;
         let xunits: i32 = bytes_to_i32(&data[16..20], endianness)?;
@@ -75,7 +71,7 @@ impl BluefileReader for Type2000Reader {
         let ydelta: f64 = bytes_to_f64(&data[32..40], endianness)?;
         let yunits: i32 = bytes_to_i32(&data[40..44], endianness)?;
 
-        Ok(Type2000Adjunct{
+        let adj_header = Type2000Adjunct{
             xstart,
             xdelta,
             xunits,
@@ -83,6 +79,14 @@ impl BluefileReader for Type2000Reader {
             ystart,
             ydelta,
             yunits,
+        };
+
+        // TODO: Add support for detatched header path
+        Ok(Self {
+            ext_path: path.clone(),
+            data_path: path.clone(),
+            header,
+            adj_header,
         })
     }
 
@@ -94,19 +98,26 @@ impl BluefileReader for Type2000Reader {
         self.header.ext_start
     }
 
-    fn get_file(&self) -> &File {
-        &self.file
+    fn get_ext_path(&self) -> &PathBuf {
+        &self.ext_path
+    }
+
+    fn get_data_path(&self) -> &PathBuf {
+        &self.data_path
     }
 
     fn get_header_endianness(&self) -> Endianness {
         self.header.header_endianness
+    }
+
+    fn get_data_endianness(&self) -> Endianness {
+        self.header.data_endianness
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
     use std::str::from_utf8;
 
     use crate::header::HeaderKeyword;
@@ -115,7 +126,7 @@ mod tests {
     fn read_type2000_test() {
         let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         d.push("resources/test/penny.prm");
-        let reader = Type2000Reader::new(d.as_path()).unwrap();
+        let reader = Type2000Reader::new(&d).unwrap();
         let header = &reader.header;
 
         assert_eq!(header.header_endianness, Endianness::Little);
@@ -131,7 +142,7 @@ mod tests {
         assert_eq!(header.keywords[0], HeaderKeyword{name: "VER".to_string(), value: "1.1".to_string()});
         assert_eq!(header.keywords[1], HeaderKeyword{name: "IO".to_string(), value: "X-Midas".to_string()});
 
-        let adjunct = &reader.read_adjunct_header().unwrap();
+        let adjunct = &reader.adj_header;
         assert_eq!(adjunct.xstart, 0.0);
         assert_eq!(adjunct.xdelta, 1.0);
         assert_eq!(adjunct.xunits, 0);
