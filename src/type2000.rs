@@ -39,7 +39,7 @@ pub struct Type2000Reader {
 
 impl BluefileReader for Type2000Reader {
     fn new(path: &PathBuf) -> Result<Self> {
-        let mut file = open_file(&path)?;
+        let mut file = open_file(path)?;
         let header = read_header(&file)?;
 
         match header.type_code {
@@ -121,6 +121,7 @@ mod tests {
     use std::str::from_utf8;
 
     use crate::header::HeaderKeyword;
+    use crate::bluefile::ExtKeyword;
 
     #[test]
     fn read_type2000_test() {
@@ -151,7 +152,8 @@ mod tests {
         assert_eq!(adjunct.ydelta, 1.0);
         assert_eq!(adjunct.yunits, 0);
 
-        let ext_keywords = &reader.read_ext_header().unwrap();
+        let ext_reader = (&reader).read_ext_header().unwrap();
+        let ext_keywords: Vec<ExtKeyword> = ext_reader.collect();
         assert_eq!(ext_keywords.len(), 5);
 
         assert_eq!(ext_keywords[0].tag, "COMMENT".to_string());

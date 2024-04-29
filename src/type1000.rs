@@ -35,7 +35,7 @@ pub struct Type1000Reader {
 
 impl BluefileReader for Type1000Reader {
     fn new(path: &PathBuf) -> Result<Self> {
-        let mut file = open_file(&path)?;
+        let mut file = open_file(path)?;
         let header = read_header(&file)?;
 
         match header.type_code {
