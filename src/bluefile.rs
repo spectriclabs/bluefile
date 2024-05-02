@@ -3,7 +3,7 @@ use std::io::BufReader;
 use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::str::from_utf8;
 
 use crate::endian::Endianness;
@@ -37,7 +37,7 @@ pub struct ExtHeaderReader {
 }
 
 impl ExtHeaderReader {
-    fn new(path: &PathBuf, offset: usize, size: usize, endianness: Endianness) -> Result<Self> {
+    fn new(path: PathBuf, offset: usize, size: usize, endianness: Endianness) -> Result<Self> {
         let file = open_file(&path)?;
         let mut reader = BufReader::new(file);
 
@@ -83,11 +83,11 @@ impl Iterator for ExtHeaderReader {
 }
 
 pub trait BluefileReader {
-    fn new(path: &PathBuf) -> Result<Self> where Self: Sized;
+    fn new<P: AsRef<Path>>(path: P) -> Result<Self> where Self: Sized;
     fn get_ext_size(&self) -> usize;
     fn get_ext_start(&self) -> usize;
-    fn get_ext_path(&self) -> &PathBuf;
-    fn get_data_path(&self) -> &PathBuf;
+    fn get_ext_path(&self) -> PathBuf;
+    fn get_data_path(&self) -> PathBuf;
     fn get_header_endianness(&self) -> Endianness;
     fn get_data_endianness(&self) -> Endianness;
 

@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::bluefile::{
     ADJUNCT_HEADER_OFFSET,
@@ -38,8 +38,10 @@ pub struct Type2000Reader {
 }
 
 impl BluefileReader for Type2000Reader {
-    fn new(path: &PathBuf) -> Result<Self> {
-        let mut file = open_file(path)?;
+    fn new<P: AsRef<Path>>(path: P) -> Result<Self> {
+        let mut path_buf = PathBuf::new();
+        path_buf.push(path);
+        let mut file = open_file(&path_buf)?;
         let header = read_header(&file)?;
 
         match header.type_code {
@@ -83,8 +85,8 @@ impl BluefileReader for Type2000Reader {
 
         // TODO: Add support for detatched header path
         Ok(Self {
-            ext_path: path.clone(),
-            data_path: path.clone(),
+            ext_path: path_buf.clone(),
+            data_path: path_buf.clone(),
             header,
             adj_header,
         })
@@ -98,12 +100,12 @@ impl BluefileReader for Type2000Reader {
         self.header.ext_start
     }
 
-    fn get_ext_path(&self) -> &PathBuf {
-        &self.ext_path
+    fn get_ext_path(&self) -> PathBuf {
+        self.ext_path.clone()
     }
 
-    fn get_data_path(&self) -> &PathBuf {
-        &self.data_path
+    fn get_data_path(&self) -> PathBuf {
+        self.data_path.clone()
     }
 
     fn get_header_endianness(&self) -> Endianness {
