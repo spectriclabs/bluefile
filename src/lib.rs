@@ -1,8 +1,8 @@
-mod bluefile;
+pub mod bluefile;
 mod error;
-mod endian;
-mod header;
+pub mod endian;
+pub mod header;
 mod result;
-mod type1000;
-mod type2000;
+pub mod type1000;
+pub mod type2000;
 mod util;

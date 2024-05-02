@@ -33,8 +33,8 @@ pub struct Type2000Adjunct {
 pub struct Type2000Reader {
     ext_path: PathBuf,
     data_path: PathBuf,
-    header: Header,
-    adj_header: Type2000Adjunct,
+    pub header: Header,
+    pub adj_header: Type2000Adjunct,
 }
 
 impl BluefileReader for Type2000Reader {
@@ -112,56 +112,5 @@ impl BluefileReader for Type2000Reader {
 
     fn get_data_endianness(&self) -> Endianness {
         self.header.data_endianness
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::str::from_utf8;
-
-    use crate::header::HeaderKeyword;
-    use crate::bluefile::ExtKeyword;
-
-    #[test]
-    fn read_type2000_test() {
-        let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        d.push("resources/test/penny.prm");
-        let reader = Type2000Reader::new(&d).unwrap();
-        let header = &reader.header;
-
-        assert_eq!(header.header_endianness, Endianness::Little);
-        assert_eq!(header.data_endianness, Endianness::Little);
-        assert_eq!(header.ext_start, 257*512);
-        assert_eq!(header.ext_size, 320);
-        assert_eq!(header.data_start, 512.0);
-        assert_eq!(header.data_size, 131072.0);
-        assert_eq!(header.type_code, TypeCode::Type2000(2000));
-        assert_eq!(header.format.mode, b'S');
-        assert_eq!(header.format.ftype, b'D');
-        assert_eq!(header.timecode, 0.0);
-        assert_eq!(header.keywords[0], HeaderKeyword{name: "VER".to_string(), value: "1.1".to_string()});
-        assert_eq!(header.keywords[1], HeaderKeyword{name: "IO".to_string(), value: "X-Midas".to_string()});
-
-        let adjunct = &reader.adj_header;
-        assert_eq!(adjunct.xstart, 0.0);
-        assert_eq!(adjunct.xdelta, 1.0);
-        assert_eq!(adjunct.xunits, 0);
-        assert_eq!(adjunct.subsize, 128);
-        assert_eq!(adjunct.ystart, 0.0);
-        assert_eq!(adjunct.ydelta, 1.0);
-        assert_eq!(adjunct.yunits, 0);
-
-        let ext_reader = (&reader).read_ext_header().unwrap();
-        let ext_keywords: Vec<ExtKeyword> = ext_reader.collect();
-        assert_eq!(ext_keywords.len(), 5);
-
-        assert_eq!(ext_keywords[0].tag, "COMMENT".to_string());
-        assert_eq!(ext_keywords[0].format, 'A');
-        assert_eq!(from_utf8(&ext_keywords[0].value).unwrap(), "Demo data for XRTSURFACE/STAY".to_string());
-
-        assert_eq!(ext_keywords[4].tag, "COMMENT3".to_string());
-        assert_eq!(ext_keywords[4].format, 'A');
-        assert_eq!(from_utf8(&ext_keywords[4].value).unwrap(), "XRTSURF/STAY/NOLAB/XC=5,PENNY,1.0,255.0,4,128,16,0,10,2".to_string());
     }
 }
