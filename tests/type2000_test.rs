@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::str::from_utf8;
 
 use bluefile::bluefile::{BluefileReader, ExtKeyword, TypeCode};
+use bluefile::data_type::{Format, Rank};
 use bluefile::endian::Endianness;
 use bluefile::header::HeaderKeyword;
 use bluefile::type2000::Type2000Reader;
@@ -20,8 +21,8 @@ fn read_type2000_test() {
     assert_eq!(header.data_start, 512.0);
     assert_eq!(header.data_size, 131072.0);
     assert_eq!(header.type_code, TypeCode::Type2000(2000));
-    assert_eq!(header.format.mode, b'S');
-    assert_eq!(header.format.ftype, b'D');
+    assert_eq!(header.data_type.rank, Rank::Scalar);
+    assert_eq!(header.data_type.format, Format::Double);
     assert_eq!(header.timecode, 0.0);
     assert_eq!(header.keywords[0], HeaderKeyword{name: "VER".to_string(), value: "1.1".to_string()});
     assert_eq!(header.keywords[1], HeaderKeyword{name: "IO".to_string(), value: "X-Midas".to_string()});
@@ -35,7 +36,7 @@ fn read_type2000_test() {
     assert_eq!(adjunct.ydelta, 1.0);
     assert_eq!(adjunct.yunits, 0);
 
-    let ext_reader = (&reader).read_ext_header().unwrap();
+    let ext_reader = (&reader).get_ext_iter().unwrap();
     let ext_keywords: Vec<ExtKeyword> = ext_reader.collect();
     assert_eq!(ext_keywords.len(), 5);
 

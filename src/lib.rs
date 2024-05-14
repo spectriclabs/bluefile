@@ -1,4 +1,5 @@
 pub mod bluefile;
+pub mod data_type;
 mod error;
 pub mod endian;
 pub mod header;

@@ -22,13 +22,7 @@ pub enum TypeCode {
     Type2000(i32),
 }
 
-#[derive(Debug, Clone)]
-pub struct Format {
-    pub mode: u8,
-    pub ftype: u8,
-}
-
-pub struct ExtHeaderReader {
+pub struct ExtHeaderIter {
     reader: BufReader<File>,
     consumed: usize,
     offset: usize,
@@ -36,7 +30,7 @@ pub struct ExtHeaderReader {
     endianness: Endianness,
 }
 
-impl ExtHeaderReader {
+impl ExtHeaderIter {
     fn new(path: PathBuf, offset: usize, size: usize, endianness: Endianness) -> Result<Self> {
         let file = open_file(&path)?;
         let mut reader = BufReader::new(file);
@@ -45,7 +39,7 @@ impl ExtHeaderReader {
             Ok(x) => x,
             Err(_) => return Err(Error::ExtHeaderSeekError),
         };
-        Ok(ExtHeaderReader{
+        Ok(ExtHeaderIter{
             reader,
             consumed: 0,
             offset,
@@ -55,7 +49,7 @@ impl ExtHeaderReader {
     }
 }
 
-impl Iterator for ExtHeaderReader {
+impl Iterator for ExtHeaderIter {
     type Item = ExtKeyword;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -64,16 +58,16 @@ impl Iterator for ExtHeaderReader {
         }
 
         let mut key_length_buf = vec![0_u8; EXT_KEYWORD_LENGTH];
-        self.consumed += match self.reader.read(&mut key_length_buf) {
-            Ok(x) => x,
+        self.consumed += match self.reader.read_exact(&mut key_length_buf) {
+            Ok(_) => EXT_KEYWORD_LENGTH,
             Err(_) => return None,
         };
 
         // entire length of keyword block: tag, data, kwhdr & padding
         let key_length = bytes_to_i32(&key_length_buf, self.endianness).unwrap() as usize;
         let mut key_buf = vec![0_u8; key_length-EXT_KEYWORD_LENGTH];
-        self.consumed += match self.reader.read(&mut key_buf) {
-            Ok(x) => x,
+        self.consumed += match self.reader.read_exact(&mut key_buf) {
+            Ok(_) => key_length-EXT_KEYWORD_LENGTH,
             Err(_) => return None,
         };
         let keyword = parse_ext_keyword(&key_buf, key_length, self.endianness).unwrap();
@@ -83,22 +77,30 @@ impl Iterator for ExtHeaderReader {
 }
 
 pub trait BluefileReader {
+    type AdjHeader;
+    type DataIter;
+
     fn new<P: AsRef<Path>>(path: P) -> Result<Self> where Self: Sized;
     fn get_ext_size(&self) -> usize;
     fn get_ext_start(&self) -> usize;
     fn get_ext_path(&self) -> PathBuf;
+    fn get_adj_header(&self) -> Self::AdjHeader;
     fn get_data_path(&self) -> PathBuf;
+    fn get_data_start(&self) -> usize;
+    fn get_data_size(&self) -> usize;
     fn get_header_endianness(&self) -> Endianness;
     fn get_data_endianness(&self) -> Endianness;
 
-    fn read_ext_header(&self) -> Result<ExtHeaderReader> {
-        ExtHeaderReader::new(
+    fn get_ext_iter(&self) -> Result<ExtHeaderIter> {
+        ExtHeaderIter::new(
             self.get_ext_path(),
             self.get_ext_start(),
             self.get_ext_size(),
             self.get_header_endianness(),
         )
     }
+
+    fn get_data_iter(&self) -> Result<Self::DataIter>;
 }
 
 //fn new_reader(path: &Path) -> Result<Box<dyn BluefileReader>> {

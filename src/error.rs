@@ -2,6 +2,9 @@
 pub enum Error {
     NotBlueFileError,
     TypeCodeMismatchError,
+    UnknownRankError,
+    UnknownFormatError,
+    UnknownDataTypeError,
     InvalidEndianness,
     ByteConversionError,
     FileOpenError(String),
@@ -17,4 +20,5 @@ pub enum Error {
     HeaderKeywordLengthParseError,
     ExtHeaderKeywordLengthParseError,
     ExtHeaderKeywordReadError,
+    DataSeekError,
 }

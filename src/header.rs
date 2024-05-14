@@ -4,7 +4,8 @@ use std::io::Seek;
 use std::io::SeekFrom;
 use std::str::from_utf8;
 
-use crate::bluefile::{Format, TypeCode};
+use crate::bluefile::TypeCode;
+use crate::data_type::{DataType, Format, Rank};
 use crate::endian::Endianness;
 use crate::error::Error;
 use crate::result::Result;
@@ -33,7 +34,7 @@ pub struct Header {
     pub data_start: f64,  // in bytes
     pub data_size: f64,  // in bytes
     pub type_code: TypeCode,
-    pub format: Format,
+    pub data_type: DataType,
     pub timecode: f64,  // seconds since Jan. 1, 1950
     pub keywords: Vec<HeaderKeyword>,
 }
@@ -54,7 +55,7 @@ pub fn parse_header(data: &[u8]) -> Result<Header> {
     let data_start = bytes_to_f64(&data[32..40], header_endianness)?;
     let data_size = bytes_to_f64(&data[40..48], header_endianness)?;
     let type_code = parse_type_code(&data[48..52], header_endianness)?;
-    let format = Format{mode: data[52], ftype: data[53]};
+    let data_type = DataType{rank: Rank::try_from(data[52])?, format: Format::try_from(data[53])?};
     let timecode = bytes_to_f64(&data[56..64], header_endianness)?;
     let keylength: usize = match bytes_to_i32(&data[160..164], header_endianness).unwrap().try_into() {
         Ok(x) => x,
@@ -71,7 +72,7 @@ pub fn parse_header(data: &[u8]) -> Result<Header> {
         data_start,
         data_size,
         type_code,
-        format,
+        data_type,
         timecode,
         keywords,
     };
