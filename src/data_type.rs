@@ -79,6 +79,7 @@ impl DataType {
     }
 }
 
+#[derive(Debug)]
 pub enum DataValue {
     SB(i8),
     SI(i16),

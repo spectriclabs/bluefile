@@ -30,8 +30,8 @@ pub struct Type1000Adjunct {
 }
 
 pub struct Type1000DataItem {
-    abscissa: f64,
-    value: DataValue,
+    pub abscissa: f64,
+    pub value: DataValue,
 }
 
 pub struct Type1000DataIter {

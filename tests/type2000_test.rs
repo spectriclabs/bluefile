@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::str::from_utf8;
 
 use bluefile::bluefile::{BluefileReader, ExtKeyword, TypeCode};
-use bluefile::data_type::{Format, Rank};
+use bluefile::data_type::{DataValue, Format, Rank};
 use bluefile::endian::Endianness;
 use bluefile::header::HeaderKeyword;
 use bluefile::type2000::Type2000Reader;
@@ -47,4 +47,21 @@ fn read_type2000_test() {
     assert_eq!(ext_keywords[4].tag, "COMMENT3".to_string());
     assert_eq!(ext_keywords[4].format, 'A');
     assert_eq!(from_utf8(&ext_keywords[4].value).unwrap(), "XRTSURF/STAY/NOLAB/XC=5,PENNY,1.0,255.0,4,128,16,0,10,2".to_string());
+
+    let data_reader = (&reader).get_data_iter().unwrap();
+    let mut frame_count = 0;
+
+    for frame in data_reader {
+        assert_eq!(frame.frame.len(), 128);
+        frame_count += 1;
+
+        for item in frame.frame {
+            match item.value {
+                DataValue::SD(_) => continue,
+                _ => panic!("Expected Scalar Double, but got {:?}", item),
+            }
+        }
+    }
+
+    assert_eq!(frame_count, 128);
 }

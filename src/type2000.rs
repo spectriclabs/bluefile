@@ -33,14 +33,16 @@ pub struct Type2000Adjunct {
     pub yunits: i32,
 }
 
+#[derive(Debug)]
 pub struct Type2000DataItem {
-    abscissa: f64,
-    value: DataValue,
+    pub abscissa: f64,
+    pub value: DataValue,
 }
 
+#[derive(Debug)]
 pub struct Type2000Frame {
-    abscissa: f64,
-    frame: Vec<Type2000DataItem>,
+    pub abscissa: f64,
+    pub frame: Vec<Type2000DataItem>,
 }
 
 pub struct Type2000DataIter {
