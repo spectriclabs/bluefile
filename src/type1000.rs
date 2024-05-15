@@ -22,13 +22,14 @@ use crate::util::{
     open_file,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Type1000Adjunct {
     pub xstart: f64,
     pub xdelta: f64,
     pub xunits: i32,
 }
 
+#[derive(Debug)]
 pub struct Type1000DataItem {
     pub abscissa: f64,
     pub value: DataValue,
@@ -148,6 +149,10 @@ impl BluefileReader for Type1000Reader {
             header,
             adj_header,
         })
+    }
+
+    fn get_header(&self) -> Header {
+        self.header.clone()
     }
 
     fn get_ext_size(&self) -> usize {

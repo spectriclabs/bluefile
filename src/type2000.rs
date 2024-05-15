@@ -22,7 +22,7 @@ use crate::util::{
     open_file,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Type2000Adjunct {
     pub xstart: f64,
     pub xdelta: f64,
@@ -119,8 +119,8 @@ impl Iterator for Type2000DataIter {
 pub struct Type2000Reader {
     ext_path: PathBuf,
     data_path: PathBuf,
-    pub header: Header,
-    pub adj_header: Type2000Adjunct,
+    header: Header,
+    adj_header: Type2000Adjunct,
 }
 
 impl BluefileReader for Type2000Reader {
@@ -179,6 +179,10 @@ impl BluefileReader for Type2000Reader {
             header,
             adj_header,
         })
+    }
+
+    fn get_header(&self) -> Header {
+        self.header.clone()
     }
 
     fn get_ext_size(&self) -> usize {

@@ -8,6 +8,7 @@ use std::str::from_utf8;
 
 use crate::endian::Endianness;
 use crate::error::Error;
+use crate::header::Header;
 use crate::result::Result;
 use crate::util::{bytes_to_i16, bytes_to_i32, open_file};
 
@@ -81,6 +82,7 @@ pub trait BluefileReader {
     type DataIter;
 
     fn new<P: AsRef<Path>>(path: P) -> Result<Self> where Self: Sized;
+    fn get_header(&self) -> Header;
     fn get_ext_size(&self) -> usize;
     fn get_ext_start(&self) -> usize;
     fn get_ext_path(&self) -> PathBuf;

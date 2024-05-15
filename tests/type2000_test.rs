@@ -12,7 +12,7 @@ fn read_type2000_test() {
     let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     d.push("resources/test/penny.prm");
     let reader = Type2000Reader::new(&d).unwrap();
-    let header = &reader.header;
+    let header = &reader.get_header();
 
     assert_eq!(header.header_endianness, Endianness::Little);
     assert_eq!(header.data_endianness, Endianness::Little);
@@ -27,7 +27,7 @@ fn read_type2000_test() {
     assert_eq!(header.keywords[0], HeaderKeyword{name: "VER".to_string(), value: "1.1".to_string()});
     assert_eq!(header.keywords[1], HeaderKeyword{name: "IO".to_string(), value: "X-Midas".to_string()});
 
-    let adjunct = &reader.adj_header;
+    let adjunct = &reader.get_adj_header();
     assert_eq!(adjunct.xstart, 0.0);
     assert_eq!(adjunct.xdelta, 1.0);
     assert_eq!(adjunct.xunits, 0);
@@ -59,7 +59,7 @@ fn read_type2000_test() {
             match item.value {
                 DataValue::SD(_) => continue,
                 _ => panic!("Expected Scalar Double, but got {:?}", item),
-            }
+            };
         }
     }
 
