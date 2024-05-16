@@ -49,19 +49,16 @@ fn read_type2000_test() {
     assert_eq!(from_utf8(&ext_keywords[4].value).unwrap(), "XRTSURF/STAY/NOLAB/XC=5,PENNY,1.0,255.0,4,128,16,0,10,2".to_string());
 
     let data_reader = (&reader).get_data_iter().unwrap();
-    let mut frame_count = 0;
+    let mut count = 0;
 
-    for frame in data_reader {
-        assert_eq!(frame.frame.len(), 128);
-        frame_count += 1;
+    for value in data_reader {
+        count += 1;
 
-        for item in frame.frame {
-            match item.value {
-                DataValue::SD(_) => continue,
-                _ => panic!("Expected Scalar Double, but got {:?}", item),
-            };
-        }
+        match value {
+            DataValue::SD(_) => continue,
+            _ => panic!("Expected Scalar Double, but got {:?}", value),
+        };
     }
 
-    assert_eq!(frame_count, 128);
+    assert_eq!(count, 128*128);
 }

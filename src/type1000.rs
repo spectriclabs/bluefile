@@ -29,12 +29,6 @@ pub struct Type1000Adjunct {
     pub xunits: i32,
 }
 
-#[derive(Debug)]
-pub struct Type1000DataItem {
-    pub abscissa: f64,
-    pub value: DataValue,
-}
-
 pub struct Type1000DataIter {
     reader: BufReader<File>,
     consumed: usize,
@@ -43,7 +37,6 @@ pub struct Type1000DataIter {
     endianness: Endianness,
     data_type: DataType,
     adjunct: Type1000Adjunct,
-    count: f64,
     buf: Vec<u8>,
 }
 
@@ -67,14 +60,13 @@ impl Type1000DataIter {
             endianness,
             data_type,
             adjunct,
-            count: -1.0,
             buf,
         })
     }
 }
 
 impl Iterator for Type1000DataIter {
-    type Item = Type1000DataItem;
+    type Item = DataValue;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.consumed >= self.size {
@@ -85,12 +77,9 @@ impl Iterator for Type1000DataIter {
             Ok(_) => self.data_type.size(),
             Err(_) => return None,
         };
+
         let value = bytes_to_data_value(&self.data_type, self.endianness, &self.buf).expect("Bytes must convert to expected DataType");
-        self.count += 1.0;
-        Some(Type1000DataItem{
-            abscissa: self.count * self.adjunct.xdelta,
-            value,
-        })
+        Some(value)
     }
 }
 

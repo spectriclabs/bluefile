@@ -33,16 +33,16 @@ fn read_type1000_test() {
     assert_eq!(adjunct.xunits, 0);
 
     let data_reader = (&reader).get_data_iter().unwrap();
-    let mut item_count = 0;
+    let mut count = 0;
 
-    for item in data_reader {
-        item_count += 1;
+    for value in data_reader {
+        count += 1;
 
-        match item.value {
+        match value {
             DataValue::SD(_) => continue,
-            _ => panic!("Expected Scalar Double, but got {:?}", item),
+            _ => panic!("Expected Scalar Double, but got {:?}", value),
         };
     }
 
-    assert_eq!(item_count, 32768 / 8);
+    assert_eq!(count, 32768 / 8);
 }

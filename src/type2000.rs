@@ -33,18 +33,6 @@ pub struct Type2000Adjunct {
     pub yunits: i32,
 }
 
-#[derive(Debug)]
-pub struct Type2000DataItem {
-    pub abscissa: f64,
-    pub value: DataValue,
-}
-
-#[derive(Debug)]
-pub struct Type2000Frame {
-    pub abscissa: f64,
-    pub frame: Vec<Type2000DataItem>,
-}
-
 pub struct Type2000DataIter {
     reader: BufReader<File>,
     consumed: usize,
@@ -53,8 +41,6 @@ pub struct Type2000DataIter {
     endianness: Endianness,
     data_type: DataType,
     adjunct: Type2000Adjunct,
-    frame_count: f64,
-    count: f64,
     buf: Vec<u8>,
 }
 
@@ -78,41 +64,26 @@ impl Type2000DataIter {
             endianness,
             data_type,
             adjunct,
-            frame_count: -1.0,
-            count: -1.0,
             buf,
         })
     }
 }
 
 impl Iterator for Type2000DataIter {
-    type Item = Type2000Frame;
+    type Item = DataValue;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.consumed >= self.size {
             return None;
         }
 
-        let mut frame = Vec::with_capacity(self.adjunct.subsize.try_into().unwrap());
+        self.consumed += match self.reader.read_exact(&mut self.buf) {
+            Ok(_) => self.data_type.size(),
+            Err(_) => return None,
+        };
 
-        for _ in 0..self.adjunct.subsize {
-            self.consumed += match self.reader.read_exact(&mut self.buf) {
-                Ok(_) => self.data_type.size(),
-                Err(_) => return None,
-            };
-            let value = bytes_to_data_value(&self.data_type, self.endianness, &self.buf).expect("Bytes must convert to expected DataType");
-            self.count += 1.0;
-            frame.push(Type2000DataItem{
-                abscissa: self.count * self.adjunct.xdelta,
-                value,
-            })
-        }
-
-        self.frame_count += 1.0;
-        Some(Type2000Frame{
-            abscissa: self.frame_count,
-            frame,
-        })
+        let value = bytes_to_data_value(&self.data_type, self.endianness, &self.buf).expect("Bytes must convert to expected DataType");
+        Some(value)
     }
 }
 
