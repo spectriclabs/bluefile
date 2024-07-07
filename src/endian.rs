@@ -2,12 +2,14 @@ use std::convert::TryFrom;
 
 use crate::error::Error;
 
+/// Defines endianness type.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Endianness {
     Big,
     Little,
 }
 
+/// Converts raw bytes to an Endianness enum type.
 impl TryFrom<&[u8]> for Endianness {
     type Error = Error;
 

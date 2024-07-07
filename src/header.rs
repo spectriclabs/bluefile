@@ -14,10 +14,10 @@ use crate::util::{
     bytes_to_i32,
 };
 
-const COMMON_HEADER_OFFSET: usize = 0;
-const COMMON_HEADER_SIZE: usize = 256;
-const HEADER_KEYWORD_OFFSET: usize = 164;
-const HEADER_KEYWORD_LENGTH: usize = 92;
+const COMMON_HEADER_OFFSET: usize = 0;  // in bytes
+const COMMON_HEADER_SIZE: usize = 256;  // in bytes
+const HEADER_KEYWORD_OFFSET: usize = 164;  // in bytes
+const HEADER_KEYWORD_LENGTH: usize = 92;  // in bytes
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct HeaderKeyword {
@@ -29,7 +29,7 @@ pub struct HeaderKeyword {
 pub struct Header {
     pub header_endianness: Endianness,
     pub data_endianness: Endianness,
-    pub ext_start: usize,  // in bytes (multiple of 512 byte blocks)
+    pub ext_start: usize,  // in bytes (already multiplied by 512 byte blocks)
     pub ext_size: usize,  // in bytes
     pub data_start: f64,  // in bytes
     pub data_size: f64,  // in bytes

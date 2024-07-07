@@ -9,12 +9,14 @@ use crate::util::{
     bytes_to_f64,
 };
 
+/// Defines the rank of the data.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Rank {
     Scalar,
     // Complex,
 }
 
+/// Converts raw bytes to a Rank enum type.
 impl TryFrom<u8> for Rank {
     type Error = Error;
 
@@ -26,6 +28,7 @@ impl TryFrom<u8> for Rank {
     }
 }
 
+/// Defines the number of elements required by each Rank enum type.
 pub fn rank_multiple(r: &Rank) -> usize {
     match r {
         Rank::Scalar => 1,
@@ -33,6 +36,7 @@ pub fn rank_multiple(r: &Rank) -> usize {
     }
 }
 
+/// Defines the format of the data.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Format {
     Byte,
@@ -42,6 +46,7 @@ pub enum Format {
     Double,
 }
 
+/// Converts raw bytes to a Format enum type.
 impl TryFrom<u8> for Format {
     type Error = Error;
 
@@ -57,6 +62,7 @@ impl TryFrom<u8> for Format {
     }
 }
 
+/// Defines the number of bytes required by each Format enum type.
 pub fn format_size(f: &Format) -> usize {
     match f {
         Format::Byte => 1,
@@ -67,6 +73,7 @@ pub fn format_size(f: &Format) -> usize {
     }
 }
 
+/// Combines the Rank and Format into a single struct so they can be easily passed around together.
 #[derive(Debug, Clone)]
 pub struct DataType {
     pub rank: Rank,
@@ -74,11 +81,13 @@ pub struct DataType {
 }
 
 impl DataType {
+    /// Returns the total size in bytes for the DataType.
     pub fn size(&self) -> usize {
         rank_multiple(&self.rank) * format_size(&self.format)
     }
 }
 
+/// Wraps the Rust data value in the equivalent bluefile data type.
 #[derive(Debug)]
 pub enum DataValue {
     SB(i8),
@@ -88,6 +97,7 @@ pub enum DataValue {
     SD(f64),
 }
 
+/// Converts raw bytes to a bluefile data type.
 pub fn bytes_to_data_value(data_type: &DataType, endianness: Endianness, buf: &Vec<u8>) -> Result<DataValue> {
     match data_type {
         DataType{rank: Rank::Scalar, format: Format::Byte} => Ok(DataValue::SB(byte_to_i8(buf[0])?)),

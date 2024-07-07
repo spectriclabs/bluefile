@@ -1,3 +1,5 @@
+//! Functions, structures, and traits common to all bluefiles.
+
 use std::fs::File;
 use std::io::BufReader;
 use std::io::Read;
@@ -16,13 +18,14 @@ pub(crate) const ADJUNCT_HEADER_OFFSET: usize = 256;
 pub(crate) const ADJUNCT_HEADER_SIZE: usize = 256;
 const EXT_KEYWORD_LENGTH: usize = 4;
 
-
+/// Represents the primary bluefile types, with a field to capture the specific bluefile type.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum TypeCode {
     Type1000(i32),
     Type2000(i32),
 }
 
+/// Tracks information necesary to iterate through the extended header.
 pub struct ExtHeaderIter {
     reader: BufReader<File>,
     consumed: usize,
@@ -31,6 +34,7 @@ pub struct ExtHeaderIter {
     endianness: Endianness,
 }
 
+/// Additional functions for the extended header iterator.
 impl ExtHeaderIter {
     fn new(path: PathBuf, offset: usize, size: usize, endianness: Endianness) -> Result<Self> {
         let file = open_file(&path)?;
@@ -50,6 +54,7 @@ impl ExtHeaderIter {
     }
 }
 
+/// Implements the iterator trait for the extended header.
 impl Iterator for ExtHeaderIter {
     type Item = ExtKeyword;
 
@@ -77,6 +82,7 @@ impl Iterator for ExtHeaderIter {
     }
 }
 
+/// Defines a trait that all bluefile readers should implement.
 pub trait BluefileReader {
     type AdjHeader;
     type DataIter;
@@ -110,6 +116,7 @@ pub trait BluefileReader {
 //    let header = read_header(&file);
 //}
 
+/// Raw extended header keyword properties.
 pub struct ExtKeyword {
     pub length: usize,
     pub tag: String,

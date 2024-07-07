@@ -1,6 +1,6 @@
 # bluefile
 
-Rust library for handling X-Midas Bluefiles.
+Experimental Rust library for handling X-Midas Bluefiles.
 
 ## Usage
 
@@ -8,8 +8,10 @@ Add the following to your project's `Cargo.toml`:
 
 ```toml
 [dependencies]
-bluefile = "0.1"
+bluefile = "*"
 ```
+
+Examples useage can be found in the `tests` directory.
 
 ## Running Tests
 
