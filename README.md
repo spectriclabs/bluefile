@@ -11,7 +11,7 @@ Add the following to your project's `Cargo.toml`:
 bluefile = "*"
 ```
 
-Examples useage can be found in the `tests` directory.
+Examples usage can be found in the `tests` directory.
 
 ## Running Tests
 
