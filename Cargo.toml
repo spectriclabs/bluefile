@@ -11,4 +11,4 @@ repository = "https://github.com/spectriclabs/bluefile"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-num = "*"
+num = "0.4"
