@@ -2,6 +2,7 @@
 name = "bluefile"
 version = "0.1.0"
 edition = "2021"
+license = "Apache-2.0"
 license-file = "LICENSE.txt"
 readme = "README.md"
 description = "Experimental Rust library for handling X-Midas Bluefiles."
@@ -11,3 +12,4 @@ repository = "https://github.com/spectriclabs/bluefile"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+num = "*"
