@@ -1,3 +1,5 @@
+use std::fmt;
+
 use num::complex::Complex;
 
 use crate::endian::Endianness;
@@ -115,6 +117,25 @@ pub enum DataValue {
     CX(Complex<i64>),
     CF(Complex<f32>),
     CD(Complex<f64>),
+}
+
+impl fmt::Display for DataValue {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            DataValue::SB(x) => write!(f, "SB({})", x),
+            DataValue::SI(x) => write!(f, "SI({})", x),
+            DataValue::SL(x) => write!(f, "SL({})", x),
+            DataValue::SX(x) => write!(f, "SX({})", x),
+            DataValue::SF(x) => write!(f, "SF({})", x),
+            DataValue::SD(x) => write!(f, "SD({})", x),
+            DataValue::CB(x) => write!(f, "CB({})", x),
+            DataValue::CI(x) => write!(f, "CI({})", x),
+            DataValue::CL(x) => write!(f, "CL({})", x),
+            DataValue::CX(x) => write!(f, "CX({})", x),
+            DataValue::CF(x) => write!(f, "CF({})", x),
+            DataValue::CD(x) => write!(f, "CD({})", x),
+        }
+    }
 }
 
 /// Converts raw bytes to a bluefile data type.
