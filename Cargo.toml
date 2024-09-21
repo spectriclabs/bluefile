@@ -1,6 +1,6 @@
 [package]
 name = "bluefile"
-version = "0.2.1"
+version = "0.3.0"
 edition = "2021"
 license = "Apache-2.0"
 readme = "README.md"
@@ -8,7 +8,13 @@ description = "Experimental Rust library for handling X-Midas Bluefiles."
 homepage = "https://github.com/spectriclabs/bluefile"
 repository = "https://github.com/spectriclabs/bluefile"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 num = "0.4"
+
+[lib]
+name = "bluefile"
+path = "src/lib.rs"
+
+[[bin]]
+name = "bluestat"
+path = "src/bluestat.rs"

@@ -153,6 +153,5 @@ pub fn bytes_to_data_value(data_type: &DataType, endianness: Endianness, buf: &V
         DataType{rank: Rank::Complex, format: Format::LongLong} => Ok(DataValue::CX(bytes_to_complex_i64(buf, endianness)?)),
         DataType{rank: Rank::Complex, format: Format::Float} => Ok(DataValue::CF(bytes_to_complex_f32(buf, endianness)?)),
         DataType{rank: Rank::Complex, format: Format::Double} => Ok(DataValue::CD(bytes_to_complex_f64(buf, endianness)?)),
-        _ => Err(Error::UnknownDataTypeError),
     }
 }

@@ -7,7 +7,7 @@ use crate::endian::Endianness;
 use crate::error::Error;
 use crate::result::Result;
 
-pub(crate) fn open_file(path: &PathBuf) -> Result<File> {
+pub fn open_file(path: &PathBuf) -> Result<File> {
     let file = match File::open(path) {
         Ok(x) => x,
         Err(_) => return Err(Error::FileOpenError(path.display().to_string())),
