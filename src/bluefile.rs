@@ -1,5 +1,6 @@
 //! Functions, structures, and traits common to all bluefiles.
 
+use std::fmt;
 use std::fs::File;
 use std::io::BufReader;
 use std::io::Read;
@@ -23,6 +24,23 @@ const EXT_KEYWORD_LENGTH: usize = 4;
 pub enum TypeCode {
     Type1000(i32),
     Type2000(i32),
+    Type3000(i32),
+    Type4000(i32),
+    Type5000(i32),
+    Type6000(i32),
+}
+
+impl fmt::Display for TypeCode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TypeCode::Type1000(t) => write!(f, "{}", t),
+            TypeCode::Type2000(t) => write!(f, "{}", t),
+            TypeCode::Type3000(t) => write!(f, "{}", t),
+            TypeCode::Type4000(t) => write!(f, "{}", t),
+            TypeCode::Type5000(t) => write!(f, "{}", t),
+            TypeCode::Type6000(t) => write!(f, "{}", t),
+        }
+    }
 }
 
 /// Tracks information necesary to iterate through the extended header.

@@ -40,6 +40,15 @@ impl TryFrom<u8> for Rank {
     }
 }
 
+impl fmt::Display for Rank {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Rank::Scalar => write!(f, "scalar"),
+            Rank::Complex => write!(f, "complex"),
+        }
+    }
+}
+
 /// Defines the number of elements required by each Rank enum type.
 pub fn rank_multiple(r: &Rank) -> usize {
     match r {
@@ -72,6 +81,19 @@ impl TryFrom<u8> for Format {
             b'F' => Ok(Format::Float),
             b'D' => Ok(Format::Double),
             _ => Err(Error::UnknownFormatError),
+        }
+    }
+}
+
+impl fmt::Display for Format {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Format::Byte => write!(f, "byte"),
+            Format::Int => write!(f, "int"),
+            Format::Long => write!(f, "long"),
+            Format::LongLong => write!(f, "long long"),
+            Format::Float => write!(f, "float"),
+            Format::Double => write!(f, "double"),
         }
     }
 }

@@ -34,6 +34,7 @@ pub struct Header {
     pub data_start: f64,  // in bytes
     pub data_size: f64,  // in bytes
     pub type_code: TypeCode,
+    pub raw_data_type: String,
     pub data_type: DataType,
     pub timecode: f64,  // seconds since Jan. 1, 1950
     pub keywords: Vec<HeaderKeyword>,
@@ -55,6 +56,7 @@ pub fn parse_header(data: &[u8]) -> Result<Header> {
     let data_start = bytes_to_f64(&data[32..40], header_endianness)?;
     let data_size = bytes_to_f64(&data[40..48], header_endianness)?;
     let type_code = parse_type_code(&data[48..52], header_endianness)?;
+    let raw_data_type = from_utf8(&data[52..54]).unwrap().to_string();
     let data_type = DataType{rank: Rank::try_from(data[52])?, format: Format::try_from(data[53])?};
     let timecode = bytes_to_f64(&data[56..64], header_endianness)?;
     let keylength: usize = match bytes_to_i32(&data[160..164], header_endianness).unwrap().try_into() {
@@ -72,6 +74,7 @@ pub fn parse_header(data: &[u8]) -> Result<Header> {
         data_start,
         data_size,
         type_code,
+        raw_data_type,
         data_type,
         timecode,
         keywords,
@@ -149,6 +152,14 @@ fn parse_type_code(v: &[u8], endianness: Endianness) -> Result<TypeCode> {
         Ok(TypeCode::Type1000(t))
     } else if t/1000 == 2 {
         Ok(TypeCode::Type2000(t))
+    } else if t/1000 == 3 {
+        Ok(TypeCode::Type3000(t))
+    } else if t/1000 == 4 {
+        Ok(TypeCode::Type4000(t))
+    } else if t/1000 == 5 {
+        Ok(TypeCode::Type5000(t))
+    } else if t/1000 == 6 {
+        Ok(TypeCode::Type6000(t))
     } else {
         Err(Error::UnknownFileTypeCode(t))
     }

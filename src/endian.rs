@@ -1,4 +1,5 @@
 use std::convert::TryFrom;
+use std::fmt;
 
 use crate::error::Error;
 
@@ -7,6 +8,15 @@ use crate::error::Error;
 pub enum Endianness {
     Big,
     Little,
+}
+
+impl fmt::Display for Endianness {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Endianness::Big => write!(f, "big"),
+            Endianness::Little => write!(f, "little"),
+        }
+    }
 }
 
 /// Converts raw bytes to an Endianness enum type.

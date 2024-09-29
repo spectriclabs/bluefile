@@ -16,5 +16,5 @@ name = "bluefile"
 path = "src/lib.rs"
 
 [[bin]]
-name = "bluestat"
-path = "src/bluestat.rs"
+name = "bluejay"
+path = "src/bluejay.rs"

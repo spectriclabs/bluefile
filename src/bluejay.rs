@@ -55,5 +55,17 @@ fn main() {
         },
     };
 
-    dbg!(header);
+    println!("{{");
+    println!("  \"type_code\": \"{}\",", header.type_code);
+    println!("  \"header_endianness\": \"{}\",", header.header_endianness);
+    println!("  \"data_endianness\": \"{}\",", header.data_endianness);
+    println!("  \"ext_header_start\": {},", header.ext_start);
+    println!("  \"ext_header_size\": {},", header.ext_size);
+    println!("  \"data_start\": {},", header.data_start);
+    println!("  \"data_size\": {},", header.data_size);
+    println!("  \"data_type\": \"{}\",", header.raw_data_type);
+    println!("  \"data_rank\": \"{}\",", header.data_type.rank);
+    println!("  \"data_format\": \"{}\",", header.data_type.format);
+    println!("  \"timecode\": {}", header.timecode);
+    println!("}}");
 }
