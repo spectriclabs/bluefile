@@ -161,7 +161,7 @@ impl fmt::Display for DataValue {
 }
 
 /// Converts raw bytes to a bluefile data type.
-pub fn bytes_to_data_value(data_type: &DataType, endianness: Endianness, buf: &Vec<u8>) -> Result<DataValue> {
+pub fn bytes_to_data_value(data_type: &DataType, endianness: Endianness, buf: &[u8]) -> Result<DataValue> {
     match data_type {
         DataType{rank: Rank::Scalar, format: Format::Byte} => Ok(DataValue::SB(byte_to_i8(buf[0])?)),
         DataType{rank: Rank::Scalar, format: Format::Int} => Ok(DataValue::SI(bytes_to_i16(buf, endianness)?)),

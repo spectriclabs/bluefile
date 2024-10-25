@@ -28,7 +28,7 @@ fn get_config() -> Result<Config> {
 
     let path_str = args[1].trim();
 
-    if path_str.len() == 0 {
+    if path_str.is_empty() {
         println!("Bluefile path is empty string");
         return Err(Error::BluejayConfigError);
     }
@@ -42,7 +42,7 @@ fn get_config() -> Result<Config> {
     };
 
     Ok(Config{
-        file: file,
+        file,
         path: path_buf,
     })
 }
@@ -74,10 +74,8 @@ fn adjunct_lines(file: &File, header: &Header, lines: &mut Vec<String>) {
         lines.push(format!("  \"xstart\": {}", adj.xstart));
         lines.push(format!("  \"xdelta\": {}", adj.xdelta));
         lines.push(format!("  \"xunits\": {}", adj.xunits));
-        return;
-    }
 
-    if header.type_code == TypeCode::Type2000(2000) {
+    } else if header.type_code == TypeCode::Type2000(2000) {
         let adj = match read_type2000_adjunct_header(file, header) {
             Ok(a) => a,
             Err(_) => {
@@ -93,7 +91,6 @@ fn adjunct_lines(file: &File, header: &Header, lines: &mut Vec<String>) {
         lines.push(format!("  \"ystart\": {}", adj.ystart));
         lines.push(format!("  \"ydelta\": {}", adj.ydelta));
         lines.push(format!("  \"yunits\": {}", adj.yunits));
-        return;
     }
 }
 

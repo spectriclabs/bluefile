@@ -6,12 +6,10 @@ use std::io::BufReader;
 use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
-use std::path::{Path, PathBuf};
 use std::str::from_utf8;
 
 use crate::endian::Endianness;
 use crate::error::Error;
-use crate::header::Header;
 use crate::result::Result;
 use crate::util::{bytes_to_i16, bytes_to_i32};
 

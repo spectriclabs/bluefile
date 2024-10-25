@@ -1,6 +1,3 @@
-use std::fs::File;
-use std::path::PathBuf;
-
 use num::complex::Complex;
 
 use crate::endian::Endianness;
@@ -10,7 +7,7 @@ use crate::result::Result;
 pub(crate) fn byte_to_i8(v: u8) -> Result<i8> {
     match i8::try_from(v) {
         Ok(x) => Ok(x),
-        Err(_) => return Err(Error::ByteConversionError),
+        Err(_) => Err(Error::ByteConversionError),
     }
 }
 
