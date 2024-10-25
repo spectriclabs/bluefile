@@ -4,6 +4,4 @@ pub mod error;
 pub mod endian;
 pub mod header;
 pub mod result;
-pub mod type1000;
-pub mod type2000;
 pub mod util;

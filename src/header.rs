@@ -4,7 +4,11 @@ use std::io::Seek;
 use std::io::SeekFrom;
 use std::str::from_utf8;
 
-use crate::bluefile::TypeCode;
+use crate::bluefile::{
+    ADJUNCT_HEADER_OFFSET,
+    ADJUNCT_HEADER_SIZE,
+    TypeCode,
+};
 use crate::data_type::{DataType, Format, Rank};
 use crate::endian::Endianness;
 use crate::error::Error;
@@ -38,6 +42,24 @@ pub struct Header {
     pub data_type: DataType,
     pub timecode: f64,  // seconds since Jan. 1, 1950
     pub keywords: Vec<HeaderKeyword>,
+}
+
+#[derive(Clone, Debug)]
+pub struct Type1000Adjunct {
+    pub xstart: f64,
+    pub xdelta: f64,
+    pub xunits: i32,
+}
+
+#[derive(Clone, Debug)]
+pub struct Type2000Adjunct {
+    pub xstart: f64,
+    pub xdelta: f64,
+    pub xunits: i32,
+    pub subsize: i32,
+    pub ystart: f64,
+    pub ydelta: f64,
+    pub yunits: i32,
 }
 
 fn is_blue(v: &[u8]) -> bool {
@@ -163,4 +185,68 @@ fn parse_type_code(v: &[u8], endianness: Endianness) -> Result<TypeCode> {
     } else {
         Err(Error::UnknownFileTypeCode(t))
     }
+}
+
+pub fn read_type1000_adjunct_header(mut file: &File, header: &Header) -> Result<Type1000Adjunct> {
+    match file.seek(SeekFrom::Start(ADJUNCT_HEADER_OFFSET as u64)) {
+        Ok(x) => x,
+        Err(_) => return Err(Error::AdjunctHeaderSeekError),
+    };
+
+    let mut data = vec![0_u8; ADJUNCT_HEADER_SIZE];
+    let n = match file.read(&mut data) {
+        Ok(x) => x,
+        Err(_) => return Err(Error::FileReadError),
+    };
+
+    if n < ADJUNCT_HEADER_SIZE {
+        return Err(Error::NotEnoughAdjunctHeaderBytes(n))
+    }
+
+    let endianness = header.header_endianness;
+    let xstart: f64 = bytes_to_f64(&data[0..8], endianness)?;
+    let xdelta: f64 = bytes_to_f64(&data[8..16], endianness)?;
+    let xunits: i32 = bytes_to_i32(&data[16..20], endianness)?;
+
+    Ok(Type1000Adjunct{
+        xstart,
+        xdelta,
+        xunits,
+    })
+}
+
+pub fn read_type2000_adjunct_header(mut file: &File, header: &Header) -> Result<Type2000Adjunct> {
+    match file.seek(SeekFrom::Start(ADJUNCT_HEADER_OFFSET as u64)) {
+        Ok(x) => x,
+        Err(_) => return Err(Error::AdjunctHeaderSeekError),
+    };
+
+    let mut data = vec![0_u8; ADJUNCT_HEADER_SIZE];
+    let n = match file.read(&mut data) {
+        Ok(x) => x,
+        Err(_) => return Err(Error::FileReadError),
+    };
+
+    if n < ADJUNCT_HEADER_SIZE {
+        return Err(Error::NotEnoughAdjunctHeaderBytes(n))
+    }
+
+    let endianness = header.header_endianness;
+    let xstart: f64 = bytes_to_f64(&data[0..8], endianness)?;
+    let xdelta: f64 = bytes_to_f64(&data[8..16], endianness)?;
+    let xunits: i32 = bytes_to_i32(&data[16..20], endianness)?;
+    let subsize: i32 = bytes_to_i32(&data[20..24], endianness)?;
+    let ystart: f64 = bytes_to_f64(&data[24..32], endianness)?;
+    let ydelta: f64 = bytes_to_f64(&data[32..40], endianness)?;
+    let yunits: i32 = bytes_to_i32(&data[40..44], endianness)?;
+
+    Ok(Type2000Adjunct{
+        xstart,
+        xdelta,
+        xunits,
+        subsize,
+        ystart,
+        ydelta,
+        yunits,
+    })
 }

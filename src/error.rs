@@ -21,5 +21,5 @@ pub enum Error {
     ExtHeaderKeywordLengthParseError,
     ExtHeaderKeywordReadError,
     DataSeekError,
-    BluestatConfigError,
+    BluejayConfigError,
 }

@@ -1,13 +1,20 @@
 use std::env;
+use std::fs::File;
 use std::path::PathBuf;
 use std::process::exit;
 
-use bluefile::header::read_header;
+use bluefile::bluefile::TypeCode;
+use bluefile::header::{
+    Header,
+    read_header,
+    read_type1000_adjunct_header,
+    read_type2000_adjunct_header,
+};
 use bluefile::error::Error;
 use bluefile::result::Result;
-use bluefile::util::open_file;
 
 struct Config {
+    file: File,
     path: PathBuf,
 }
 
@@ -16,20 +23,78 @@ fn get_config() -> Result<Config> {
 
     if args.len() != 2 {
         println!("Configuration error");
-        return Err(Error::BluestatConfigError);
+        return Err(Error::BluejayConfigError);
     }
 
     let path_str = args[1].trim();
 
     if path_str.len() == 0 {
         println!("Bluefile path is empty string");
-        return Err(Error::BluestatConfigError);
+        return Err(Error::BluejayConfigError);
     }
 
     let mut path_buf = PathBuf::new();
     path_buf.push(path_str);
 
-    Ok(Config{path: path_buf})
+    let file = match File::open(&path_buf) {
+        Ok(x) => x,
+        Err(_) => return Err(Error::FileOpenError(path_buf.display().to_string())),
+    };
+
+    Ok(Config{
+        file: file,
+        path: path_buf,
+    })
+}
+
+fn header_lines(header: &Header, lines: &mut Vec<String>) {
+    lines.push(format!("  \"type_code\": \"{}\"", header.type_code));
+    lines.push(format!("  \"header_endianness\": \"{}\"", header.header_endianness));
+    lines.push(format!("  \"data_endianness\": \"{}\"", header.data_endianness));
+    lines.push(format!("  \"ext_header_start\": {}", header.ext_start));
+    lines.push(format!("  \"ext_header_size\": {}", header.ext_size));
+    lines.push(format!("  \"data_start\": {}", header.data_start));
+    lines.push(format!("  \"data_size\": {}", header.data_size));
+    lines.push(format!("  \"data_type\": \"{}\"", header.raw_data_type));
+    lines.push(format!("  \"data_rank\": \"{}\"", header.data_type.rank));
+    lines.push(format!("  \"data_format\": \"{}\"", header.data_type.format));
+    lines.push(format!("  \"timecode\": {}", header.timecode));
+}
+
+fn adjunct_lines(file: &File, header: &Header, lines: &mut Vec<String>) {
+    if header.type_code == TypeCode::Type1000(1000) {
+        let adj = match read_type1000_adjunct_header(file, header) {
+            Ok(a) => a,
+            Err(_) => {
+                println!("Error reading adjunct header");
+                return;
+            }
+        };
+
+        lines.push(format!("  \"xstart\": {}", adj.xstart));
+        lines.push(format!("  \"xdelta\": {}", adj.xdelta));
+        lines.push(format!("  \"xunits\": {}", adj.xunits));
+        return;
+    }
+
+    if header.type_code == TypeCode::Type2000(2000) {
+        let adj = match read_type2000_adjunct_header(file, header) {
+            Ok(a) => a,
+            Err(_) => {
+                println!("Error reading adjunct header");
+                return;
+            }
+        };
+
+        lines.push(format!("  \"xstart\": {}", adj.xstart));
+        lines.push(format!("  \"xdelta\": {}", adj.xdelta));
+        lines.push(format!("  \"xunits\": {}", adj.xunits));
+        lines.push(format!("  \"subsize\": {}", adj.subsize));
+        lines.push(format!("  \"ystart\": {}", adj.ystart));
+        lines.push(format!("  \"ydelta\": {}", adj.ydelta));
+        lines.push(format!("  \"yunits\": {}", adj.yunits));
+        return;
+    }
 }
 
 fn main() {
@@ -38,16 +103,7 @@ fn main() {
         Err(_) => exit(1),
     };
 
-
-    let file = match open_file(&config.path) {
-        Ok(f) => f,
-        Err(_) => {
-            println!("Could not open file at {}", config.path.display());
-            exit(1);
-        },
-    };
-
-    let header = match read_header(&file) {
+    let header = match read_header(&config.file) {
         Ok(h) => h,
         Err(_) => {
             println!("Could not read header from {}", config.path.display());
@@ -55,17 +111,12 @@ fn main() {
         },
     };
 
+    let mut lines: Vec<String> = vec![];
+    header_lines(&header, &mut lines);
+    adjunct_lines(&config.file, &header, &mut lines);
+    let all_lines = lines.join(",\n");
+
     println!("{{");
-    println!("  \"type_code\": \"{}\",", header.type_code);
-    println!("  \"header_endianness\": \"{}\",", header.header_endianness);
-    println!("  \"data_endianness\": \"{}\",", header.data_endianness);
-    println!("  \"ext_header_start\": {},", header.ext_start);
-    println!("  \"ext_header_size\": {},", header.ext_size);
-    println!("  \"data_start\": {},", header.data_start);
-    println!("  \"data_size\": {},", header.data_size);
-    println!("  \"data_type\": \"{}\",", header.raw_data_type);
-    println!("  \"data_rank\": \"{}\",", header.data_type.rank);
-    println!("  \"data_format\": \"{}\",", header.data_type.format);
-    println!("  \"timecode\": {}", header.timecode);
+    println!("{}", all_lines);
     println!("}}");
 }

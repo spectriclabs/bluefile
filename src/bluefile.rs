@@ -13,7 +13,7 @@ use crate::endian::Endianness;
 use crate::error::Error;
 use crate::header::Header;
 use crate::result::Result;
-use crate::util::{bytes_to_i16, bytes_to_i32, open_file};
+use crate::util::{bytes_to_i16, bytes_to_i32};
 
 pub(crate) const ADJUNCT_HEADER_OFFSET: usize = 256;
 pub(crate) const ADJUNCT_HEADER_SIZE: usize = 256;
@@ -54,8 +54,7 @@ pub struct ExtHeaderIter {
 
 /// Additional functions for the extended header iterator.
 impl ExtHeaderIter {
-    fn new(path: PathBuf, offset: usize, size: usize, endianness: Endianness) -> Result<Self> {
-        let file = open_file(&path)?;
+    fn new(file: File, offset: usize, size: usize, endianness: Endianness) -> Result<Self> {
         let mut reader = BufReader::new(file);
 
         match reader.seek(SeekFrom::Start(offset as u64)) {
@@ -99,40 +98,6 @@ impl Iterator for ExtHeaderIter {
 
     }
 }
-
-/// Defines a trait that all bluefile readers should implement.
-pub trait BluefileReader {
-    type AdjHeader;
-    type DataIter;
-
-    fn new<P: AsRef<Path>>(path: P) -> Result<Self> where Self: Sized;
-    fn get_header(&self) -> Header;
-    fn get_ext_size(&self) -> usize;
-    fn get_ext_start(&self) -> usize;
-    fn get_ext_path(&self) -> PathBuf;
-    fn get_adj_header(&self) -> Self::AdjHeader;
-    fn get_data_path(&self) -> PathBuf;
-    fn get_data_start(&self) -> usize;
-    fn get_data_size(&self) -> usize;
-    fn get_header_endianness(&self) -> Endianness;
-    fn get_data_endianness(&self) -> Endianness;
-
-    fn get_ext_iter(&self) -> Result<ExtHeaderIter> {
-        ExtHeaderIter::new(
-            self.get_ext_path(),
-            self.get_ext_start(),
-            self.get_ext_size(),
-            self.get_header_endianness(),
-        )
-    }
-
-    fn get_data_iter(&self) -> Result<Self::DataIter>;
-}
-
-//fn new_reader(path: &Path) -> Result<Box<dyn BluefileReader>> {
-//    let file = open_file(path)?;
-//    let header = read_header(&file);
-//}
 
 /// Raw extended header keyword properties.
 pub struct ExtKeyword {

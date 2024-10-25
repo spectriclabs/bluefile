@@ -7,14 +7,6 @@ use crate::endian::Endianness;
 use crate::error::Error;
 use crate::result::Result;
 
-pub fn open_file(path: &PathBuf) -> Result<File> {
-    let file = match File::open(path) {
-        Ok(x) => x,
-        Err(_) => return Err(Error::FileOpenError(path.display().to_string())),
-    };
-    Ok(file)
-}
-
 pub(crate) fn byte_to_i8(v: u8) -> Result<i8> {
     match i8::try_from(v) {
         Ok(x) => Ok(x),
