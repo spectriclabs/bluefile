@@ -118,68 +118,57 @@ impl DataType {
     }
 }
 
-/// Tracks information necesary to iterate through the extended header.
-pub struct ExtHeaderIter {
-    reader: BufReader<File>,
-    consumed: usize,
-    offset: usize,
-    size: usize,
-    endianness: Endianness,
-}
+/// Reads the extended header keywords.
+pub fn read_ext_header(mut file: &File, header: &Header) -> Result<Vec<ExtKeyword>> {
+    match file.seek(SeekFrom::Start(header.ext_start as u64)) {
+        Ok(x) => x,
+        Err(_) => return Err(Error::ExtHeaderSeekError),
+    };
 
-/// Additional functions for the extended header iterator.
-impl ExtHeaderIter {
-    fn new(file: File, offset: usize, size: usize, endianness: Endianness) -> Result<Self> {
-        let mut reader = BufReader::new(file);
+    let mut keywords: Vec<ExtKeyword> = vec![];
+    let mut consumed: usize = 0;
 
-        match reader.seek(SeekFrom::Start(offset as u64)) {
-            Ok(x) => x,
-            Err(_) => return Err(Error::ExtHeaderSeekError),
-        };
-        Ok(ExtHeaderIter{
-            reader,
-            consumed: 0,
-            offset,
-            size,
-            endianness,
-        })
-    }
-}
-
-/// Implements the iterator trait for the extended header.
-impl Iterator for ExtHeaderIter {
-    type Item = ExtKeyword;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.consumed >= self.size {
-            return None;
-        }
-
+    while consumed < header.ext_size {
         let mut key_length_buf = vec![0_u8; EXT_KEYWORD_LENGTH];
-        self.consumed += match self.reader.read_exact(&mut key_length_buf) {
+        consumed += match file.read_exact(&mut key_length_buf) {
             Ok(_) => EXT_KEYWORD_LENGTH,
-            Err(_) => return None,
+            Err(_) => break,
         };
 
         // entire length of keyword block: tag, data, kwhdr & padding
-        let key_length = bytes_to_i32(&key_length_buf, self.endianness).unwrap() as usize;
+        let key_length = bytes_to_i32(&key_length_buf, header.header_endianness).unwrap() as usize;
         let mut key_buf = vec![0_u8; key_length-EXT_KEYWORD_LENGTH];
-        self.consumed += match self.reader.read_exact(&mut key_buf) {
+        consumed += match file.read_exact(&mut key_buf) {
             Ok(_) => key_length-EXT_KEYWORD_LENGTH,
-            Err(_) => return None,
+            Err(_) => break,
         };
-        let keyword = parse_ext_keyword(&key_buf, key_length, self.endianness).unwrap();
-        Some(keyword)
+        let keyword = parse_ext_keyword(&key_buf, key_length, header.header_endianness).unwrap();
+        keywords.push(keyword);
+    }
 
+    Ok(keywords)
+}
+
+pub struct ExtKeywordValue {
+    pub format: char,
+    pub endianness: Endianness,
+    pub raw_value: Vec<u8>,
+}
+
+impl fmt::Display for ExtKeywordValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.format {
+            'A' => write!(f, "\"{}\"", from_utf8(&self.raw_value).unwrap().to_string()),
+            _ => write!(f, "\"?\""),
+        }
     }
 }
 
-/// Raw extended header keyword properties.
+/// Extended header keyword.
 pub struct ExtKeyword {
     pub length: usize,
     pub tag: String,
-    pub format: char,
-    pub value: Vec<u8>,
+    pub value: ExtKeywordValue,
 }
 
 fn parse_ext_keyword(v: &[u8], key_length: usize, endianness: Endianness) -> Result<ExtKeyword> {
@@ -193,17 +182,19 @@ fn parse_ext_keyword(v: &[u8], key_length: usize, endianness: Endianness) -> Res
     let tag_offset: usize = value_offset + value_length;
 
     let tag = from_utf8(&v[tag_offset..tag_offset+tag_length]).unwrap().to_string();
-    let value = v[value_offset..value_offset+value_length].to_vec();
+    let raw_value = v[value_offset..value_offset+value_length].to_vec();
+    let value = ExtKeywordValue{
+        format,
+        endianness,
+        raw_value,
+    };
 
     Ok(ExtKeyword{
         length: key_length,
         tag,
-        format,
         value,
     })
 }
-
-
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct HeaderKeyword {
