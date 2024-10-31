@@ -3,15 +3,14 @@ use std::fs::File;
 use std::path::PathBuf;
 use std::process::exit;
 
-use bluefile::bluefile::TypeCode;
-use bluefile::header::{
+use bluefile::{
+    Error,
     Header,
     read_header,
     read_type1000_adjunct_header,
     read_type2000_adjunct_header,
+    Result,
 };
-use bluefile::error::Error;
-use bluefile::result::Result;
 
 struct Config {
     file: File,
@@ -55,42 +54,43 @@ fn header_lines(header: &Header, lines: &mut Vec<String>) {
     lines.push(format!("  \"ext_header_size\": {}", header.ext_size));
     lines.push(format!("  \"data_start\": {}", header.data_start));
     lines.push(format!("  \"data_size\": {}", header.data_size));
-    lines.push(format!("  \"data_type\": \"{}\"", header.raw_data_type));
-    lines.push(format!("  \"data_rank\": \"{}\"", header.data_type.rank));
-    lines.push(format!("  \"data_format\": \"{}\"", header.data_type.format));
+    lines.push(format!("  \"data_type\": \"{}\"", header.data_type));
     lines.push(format!("  \"timecode\": {}", header.timecode));
 }
 
 fn adjunct_lines(file: &File, header: &Header, lines: &mut Vec<String>) {
-    if header.type_code == TypeCode::Type1000(1000) {
-        let adj = match read_type1000_adjunct_header(file, header) {
-            Ok(a) => a,
-            Err(_) => {
-                println!("Error reading adjunct header");
-                return;
-            }
-        };
+    match header.type_code / 1000 {
+        1 => {
+            let adj = match read_type1000_adjunct_header(file, header) {
+                Ok(a) => a,
+                Err(_) => {
+                    println!("Error reading adjunct header");
+                    return;
+                }
+            };
 
-        lines.push(format!("  \"xstart\": {}", adj.xstart));
-        lines.push(format!("  \"xdelta\": {}", adj.xdelta));
-        lines.push(format!("  \"xunits\": {}", adj.xunits));
+            lines.push(format!("  \"xstart\": {}", adj.xstart));
+            lines.push(format!("  \"xdelta\": {}", adj.xdelta));
+            lines.push(format!("  \"xunits\": {}", adj.xunits));
+        },
+        2 => {
+            let adj = match read_type2000_adjunct_header(file, header) {
+                Ok(a) => a,
+                Err(_) => {
+                    println!("Error reading adjunct header");
+                    return;
+                }
+            };
 
-    } else if header.type_code == TypeCode::Type2000(2000) {
-        let adj = match read_type2000_adjunct_header(file, header) {
-            Ok(a) => a,
-            Err(_) => {
-                println!("Error reading adjunct header");
-                return;
-            }
-        };
-
-        lines.push(format!("  \"xstart\": {}", adj.xstart));
-        lines.push(format!("  \"xdelta\": {}", adj.xdelta));
-        lines.push(format!("  \"xunits\": {}", adj.xunits));
-        lines.push(format!("  \"subsize\": {}", adj.subsize));
-        lines.push(format!("  \"ystart\": {}", adj.ystart));
-        lines.push(format!("  \"ydelta\": {}", adj.ydelta));
-        lines.push(format!("  \"yunits\": {}", adj.yunits));
+            lines.push(format!("  \"xstart\": {}", adj.xstart));
+            lines.push(format!("  \"xdelta\": {}", adj.xdelta));
+            lines.push(format!("  \"xunits\": {}", adj.xunits));
+            lines.push(format!("  \"subsize\": {}", adj.subsize));
+            lines.push(format!("  \"ystart\": {}", adj.ystart));
+            lines.push(format!("  \"ydelta\": {}", adj.ydelta));
+            lines.push(format!("  \"yunits\": {}", adj.yunits));
+        },
+        _ => {},
     }
 }
 
