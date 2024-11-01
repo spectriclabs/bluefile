@@ -1,14 +1,13 @@
 use std::fs::File;
 use std::path::PathBuf;
-use std::str::from_utf8;
 
-use bluefile::bluefile::{TypeCode};
-use bluefile::data_type::{Format, Rank};
-use bluefile::endian::Endianness;
-use bluefile::header::{
+use bluefile::{
+    DataType,
+    Endianness,
     HeaderKeyword,
     read_type1000_adjunct_header,
     read_header,
+    TypeCode,
 };
 
 #[test]
@@ -24,9 +23,8 @@ fn read_type1000_test() {
     assert_eq!(header.ext_size, 0);
     assert_eq!(header.data_start, 512.0);
     assert_eq!(header.data_size, 32768.0);
-    assert_eq!(header.type_code, TypeCode::Type1000(1000));
-    assert_eq!(header.data_type.rank, Rank::Scalar);
-    assert_eq!(header.data_type.format, Format::Double);
+    assert_eq!(header.type_code, 1000 as TypeCode);
+    assert_eq!(header.data_type, DataType{rank: b'S', format: b'D'});
     assert_eq!(header.timecode, 0.0);
     assert_eq!(header.keywords[0], HeaderKeyword{name: "VER".to_string(), value: "1.1".to_string()});
     assert_eq!(header.keywords[1], HeaderKeyword{name: "IO".to_string(), value: "X-Midas".to_string()});
@@ -50,9 +48,8 @@ fn read_type1000_complex_test() {
     assert_eq!(header.ext_size, 0);
     assert_eq!(header.data_start, 512.0);
     assert_eq!(header.data_size, 1600.0);
-    assert_eq!(header.type_code, TypeCode::Type1000(1000));
-    assert_eq!(header.data_type.rank, Rank::Complex);
-    assert_eq!(header.data_type.format, Format::Float);
+    assert_eq!(header.type_code, 1000 as TypeCode);
+    assert_eq!(header.data_type, DataType{rank: b'C', format: b'F'});
     assert_eq!(header.timecode, 0.0);
     assert_eq!(header.keywords[0], HeaderKeyword{name: "VER".to_string(), value: "1.1".to_string()});
     assert_eq!(header.keywords[1], HeaderKeyword{name: "IO".to_string(), value: "X-Midas".to_string()});

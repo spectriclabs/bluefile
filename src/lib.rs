@@ -1,6 +1,5 @@
 use std::fmt;
 use std::fs::File;
-use std::io::BufReader;
 use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
@@ -81,10 +80,10 @@ impl TryFrom<&[u8]> for Endianness {
 pub type TypeCode = i32;
 
 /// Two bytes that represent rank and format
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct DataType {
-    rank: u8,
-    format: u8,
+    pub rank: u8,
+    pub format: u8,
 }
 
 impl fmt::Display for DataType {
@@ -158,7 +157,13 @@ pub struct ExtKeywordValue {
 impl fmt::Display for ExtKeywordValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.format {
-            'A' => write!(f, "\"{}\"", from_utf8(&self.raw_value).unwrap().to_string()),
+            'A' | 'S' | 'Z' => write!(f, "\"{}\"", from_utf8(&self.raw_value).unwrap().to_string()),
+            'B' => write!(f, "{}", byte_to_i8(self.raw_value[0]).unwrap()),
+            'I' => write!(f, "{}", bytes_to_i16(&self.raw_value[0..1], self.endianness).unwrap()),
+            'L' => write!(f, "{}", bytes_to_i32(&self.raw_value[0..4], self.endianness).unwrap()),
+            'X' => write!(f, "{}", bytes_to_i64(&self.raw_value[0..8], self.endianness).unwrap()),
+            'F' => write!(f, "{}", bytes_to_f32(&self.raw_value[0..4], self.endianness).unwrap()),
+            'D' => write!(f, "{}", bytes_to_f64(&self.raw_value[0..8], self.endianness).unwrap()),
             _ => write!(f, "\"?\""),
         }
     }
