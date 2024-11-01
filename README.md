@@ -11,7 +11,27 @@ Add the following to your project's `Cargo.toml`:
 bluefile = "*"
 ```
 
-Examples can be found in the `tests` directory.
+
+```rust
+use std::fs::File;
+use bluefile::read_header;
+
+let file = File::open("/path/to/bluefile").unwrap();
+let header = read_header(&file).unwrap();
+println!("{}", header.type_code);
+println!("{}", header.data_type);
+...
+```
+
+Additional examples can be found in the `tests` directory and in the `bluejay` utility.
+
+### bluejay
+
+Bluejay is a command line utility for getting bluefile header info in JSON format.
+
+```
+bluejay /path/to/bluefile
+```
 
 ## Running Tests
 
