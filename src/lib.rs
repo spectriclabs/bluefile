@@ -1,6 +1,6 @@
 //! Experimental Rust library for handling X-Midas Bluefiles.
 //!
-//! ```
+//! ```no_run
 //! use std::fs::File;
 //! use bluefile::read_header;
 //!
@@ -8,7 +8,6 @@
 //! let header = read_header(&file).unwrap();
 //! println!("{}", header.type_code);
 //! println!("{}", header.data_type);
-//! ...
 //! ```
 
 use std::fmt;
