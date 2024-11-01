@@ -160,6 +160,8 @@ pub fn read_ext_header(mut file: &File, header: &Header) -> Result<Vec<ExtKeywor
     Ok(keywords)
 }
 
+/// Represents an extended header keyword value with the necessary information to render it from
+/// raw bytes.
 pub struct ExtKeywordValue {
     pub format: char,
     pub endianness: Endianness,
@@ -213,26 +215,50 @@ fn parse_ext_keyword(v: &[u8], key_length: usize, endianness: Endianness) -> Res
     })
 }
 
+/// Represents a from the main header (not extended header).
 #[derive(Debug, Clone, PartialEq)]
 pub struct HeaderKeyword {
     pub name: String,
     pub value: String,
 }
 
+/// Represents the main header.
 #[derive(Debug, Clone)]
 pub struct Header {
+    /// Endianness of the values in the header.
     pub header_endianness: Endianness,
+
+    /// Endianness of the values in the data.
     pub data_endianness: Endianness,
-    pub ext_start: usize,  // in bytes (already multiplied by 512 byte blocks)
-    pub ext_size: usize,  // in bytes
-    pub data_start: f64,  // in bytes
-    pub data_size: f64,  // in bytes
+
+    /// Extended header start location in bytes.
+    pub ext_start: usize,
+
+    /// Size of the extended header in bytes.
+    pub ext_size: usize,
+
+    /// Data start location in bytes.  The format specifies this as a 64 bit float because there was
+    /// no 64 bit integer type at the time.
+    pub data_start: f64,
+
+    /// Data size in bytes.  The format specifies this as a 64 bit float because there was
+    /// no 64 bit integer type at the time.
+    pub data_size: f64,
+
+    /// The type code of the file (1000, 2000, 3000, etc.).
     pub type_code: TypeCode,
+
+    /// The rank and format of the data (SD, CF, NH, etc.).
     pub data_type: DataType,
-    pub timecode: f64,  // seconds since Jan. 1, 1950
+
+    /// The start time of the data in seconds since January 1, 1950.
+    pub timecode: f64,
+
+    /// Keywords from the main header (not extended header keywords).
     pub keywords: Vec<HeaderKeyword>,
 }
 
+/// Represents the adjunct header fields for type 1000 files.
 #[derive(Clone, Debug)]
 pub struct Type1000Adjunct {
     pub xstart: f64,
@@ -240,6 +266,7 @@ pub struct Type1000Adjunct {
     pub xunits: i32,
 }
 
+/// Represents the adjunct header fields for type 2000 files.
 #[derive(Clone, Debug)]
 pub struct Type2000Adjunct {
     pub xstart: f64,
@@ -255,6 +282,7 @@ fn is_blue(v: &[u8]) -> bool {
     v[0] == b'B' && v[1] == b'L' && v[2] == b'U' && v[3] == b'E'
 }
 
+/// Parses the main header from raw bytes.
 pub fn parse_header(data: &[u8]) -> Result<Header> {
     if !is_blue(&data[0..4]) {
         return Err(Error::NotBlueFileError);
@@ -292,6 +320,7 @@ pub fn parse_header(data: &[u8]) -> Result<Header> {
     Ok(header)
 }
 
+/// Reads the main header from a file.
 pub fn read_header(mut file: &File) -> Result<Header> {
     match file.seek(SeekFrom::Start(COMMON_HEADER_OFFSET as u64)) {
         Ok(x) => x,
@@ -364,6 +393,7 @@ fn parse_type_code(v: &[u8], endianness: Endianness) -> Result<TypeCode> {
     }
 }
 
+/// Reads the adjunct header from a type 1000 file.
 pub fn read_type1000_adjunct_header(mut file: &File, header: &Header) -> Result<Type1000Adjunct> {
     match file.seek(SeekFrom::Start(ADJUNCT_HEADER_OFFSET as u64)) {
         Ok(x) => x,
@@ -392,6 +422,7 @@ pub fn read_type1000_adjunct_header(mut file: &File, header: &Header) -> Result<
     })
 }
 
+/// Reads the adjunct header from a type 2000 file.
 pub fn read_type2000_adjunct_header(mut file: &File, header: &Header) -> Result<Type2000Adjunct> {
     match file.seek(SeekFrom::Start(ADJUNCT_HEADER_OFFSET as u64)) {
         Ok(x) => x,
@@ -428,6 +459,7 @@ pub fn read_type2000_adjunct_header(mut file: &File, header: &Header) -> Result<
     })
 }
 
+/// Converts a byte to an i8.
 pub fn byte_to_i8(v: u8) -> Result<i8> {
     match i8::try_from(v) {
         Ok(x) => Ok(x),
@@ -435,6 +467,7 @@ pub fn byte_to_i8(v: u8) -> Result<i8> {
     }
 }
 
+/// Converts bytes to an i16.
 pub fn bytes_to_i16(v: &[u8], endianness: Endianness) -> Result<i16> {
     let b: [u8; 2] = match v.try_into() {
         Ok(x) => x,
@@ -448,6 +481,7 @@ pub fn bytes_to_i16(v: &[u8], endianness: Endianness) -> Result<i16> {
     }
 }
 
+/// Concerts bytes to an i32.
 pub fn bytes_to_i32(v: &[u8], endianness: Endianness) -> Result<i32> {
     let b: [u8; 4] = match v.try_into() {
         Ok(x) => x,
@@ -461,6 +495,7 @@ pub fn bytes_to_i32(v: &[u8], endianness: Endianness) -> Result<i32> {
     }
 }
 
+/// Converts bytes to an i64.
 pub fn bytes_to_i64(v: &[u8], endianness: Endianness) -> Result<i64> {
     let b: [u8; 8] = match v.try_into() {
         Ok(x) => x,
@@ -474,6 +509,7 @@ pub fn bytes_to_i64(v: &[u8], endianness: Endianness) -> Result<i64> {
     }
 }
 
+/// Converts bytes to an f32.
 pub fn bytes_to_f32(v: &[u8], endianness: Endianness) -> Result<f32> {
     let b: [u8; 4] = match v.try_into() {
         Ok(x) => x,
@@ -487,6 +523,7 @@ pub fn bytes_to_f32(v: &[u8], endianness: Endianness) -> Result<f32> {
     }
 }
 
+/// Converts bytes to an f64.
 pub fn bytes_to_f64(v: &[u8], endianness: Endianness) -> Result<f64> {
     let b: [u8; 8] = match v.try_into() {
         Ok(x) => x,
@@ -500,36 +537,42 @@ pub fn bytes_to_f64(v: &[u8], endianness: Endianness) -> Result<f64> {
     }
 }
 
+/// Converts bytes to a complex i8 (CB).
 pub fn bytes_to_complex_i8(v: &[u8]) -> Result<Complex<i8>> {
     let real: i8 = byte_to_i8(v[0])?;
     let imag: i8 = byte_to_i8(v[1])?;
     Ok(Complex::<i8>::new(real, imag))
 }
 
+/// Converts bytes to a complex i16 (CI).
 pub fn bytes_to_complex_i16(v: &[u8], endianness: Endianness) -> Result<Complex<i16>> {
     let real: i16 = bytes_to_i16(&v[0..2], endianness)?;
     let imag: i16 = bytes_to_i16(&v[2..4], endianness)?;
     Ok(Complex::<i16>::new(real, imag))
 }
 
+/// Converts bytes to a complex i32 (CL).
 pub fn bytes_to_complex_i32(v: &[u8], endianness: Endianness) -> Result<Complex<i32>> {
     let real: i32 = bytes_to_i32(&v[0..4], endianness)?;
     let imag: i32 = bytes_to_i32(&v[4..8], endianness)?;
     Ok(Complex::<i32>::new(real, imag))
 }
 
+/// Converts bytes to a complex i64 (CX).
 pub fn bytes_to_complex_i64(v: &[u8], endianness: Endianness) -> Result<Complex<i64>> {
     let real: i64 = bytes_to_i64(&v[0..8], endianness)?;
     let imag: i64 = bytes_to_i64(&v[8..16], endianness)?;
     Ok(Complex::<i64>::new(real, imag))
 }
 
+/// Converts bytes to a complex f32 (CF).
 pub fn bytes_to_complex_f32(v: &[u8], endianness: Endianness) -> Result<Complex<f32>> {
     let real: f32 = bytes_to_f32(&v[0..4], endianness)?;
     let imag: f32 = bytes_to_f32(&v[4..8], endianness)?;
     Ok(Complex::<f32>::new(real, imag))
 }
 
+/// Converts bytes to a complex f64 (CD).
 pub fn bytes_to_complex_f64(v: &[u8], endianness: Endianness) -> Result<Complex<f64>> {
     let real: f64 = bytes_to_f64(&v[0..8], endianness)?;
     let imag: f64 = bytes_to_f64(&v[8..16], endianness)?;
