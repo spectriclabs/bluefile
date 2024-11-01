@@ -96,7 +96,7 @@ fn adjunct_lines(file: &File, header: &Header, lines: &mut Vec<String>) {
 }
 
 fn keyword_lines(header: &Header, lines: &mut Vec<String>) {
-    if header.keywords.len() == 0 {
+    if header.keywords.is_empty() {
         lines.push("  \"keywords\": [],".to_string());
         return;
     }
@@ -104,9 +104,7 @@ fn keyword_lines(header: &Header, lines: &mut Vec<String>) {
     lines.push("  \"keywords\": [".to_string());
     let last_index = header.keywords.len() - 1;
 
-    for i in 0..header.keywords.len() {
-        let keyword = &header.keywords[i];
-
+    for (i, keyword) in header.keywords.iter().enumerate() {
         if i == last_index {
             lines.push(format!("    {{ \"name\": \"{}\", \"value\": \"{}\" }}", keyword.name, keyword.value));
         } else {
@@ -126,7 +124,7 @@ fn ext_header_lines(file: &File, header: &Header, lines: &mut Vec<String>) {
         },
     };
 
-    if keywords.len() == 0 {
+    if keywords.is_empty() {
         lines.push("  \"ext_header\": []".to_string());
         return;
     }
@@ -134,9 +132,7 @@ fn ext_header_lines(file: &File, header: &Header, lines: &mut Vec<String>) {
     lines.push("  \"ext_header\": [".to_string());
     let last_index = keywords.len() - 1;
 
-    for i in 0..keywords.len() {
-        let keyword = &keywords[i];
-
+    for (i, keyword) in keywords.iter().enumerate() {
         if i == last_index {
             lines.push(format!("    {{ \"name\": \"{}\", \"value\": {}, \"format\": \"{}\" }}", keyword.tag, keyword.value, keyword.value.format));
         } else {
