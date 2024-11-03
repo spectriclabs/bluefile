@@ -171,7 +171,7 @@ pub struct ExtKeywordValue {
 impl fmt::Display for ExtKeywordValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.format {
-            'A' | 'S' | 'Z' => write!(f, "\"{}\"", from_utf8(&self.raw_value).unwrap()),
+            'A' | 'S' | 'Z' => write!(f, "\"{}\"", from_utf8(&self.raw_value).unwrap().replace('\"', "\\\"")),
             'B' => write!(f, "{}", byte_to_i8(self.raw_value[0]).unwrap()),
             'I' => write!(f, "{}", bytes_to_i16(&self.raw_value[0..1], self.endianness).unwrap()),
             'L' => write!(f, "{}", bytes_to_i32(&self.raw_value[0..4], self.endianness).unwrap()),

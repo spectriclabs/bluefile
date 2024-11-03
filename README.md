@@ -29,7 +29,8 @@ Additional examples can be found in the `tests` directory and in the `bluejay` u
 
 Bluejay is a command line utility for getting bluefile header info in JSON format.
 
-```
+```sh
+cargo install bluefile
 bluejay /path/to/bluefile
 ```
 
