@@ -173,6 +173,7 @@ impl fmt::Display for ExtKeywordValue {
         match self.format {
             'A' | 'S' | 'Z' => write!(f, "\"{}\"", from_utf8(&self.raw_value).unwrap().replace('\"', "\\\"")),
             'B' => write!(f, "{}", byte_to_i8(self.raw_value[0]).unwrap()),
+            'O' => write!(f, "{}", self.raw_value[0]),
             'I' => write!(f, "{}", bytes_to_i16(&self.raw_value[0..2], self.endianness).unwrap()),
             'L' => write!(f, "{}", bytes_to_i32(&self.raw_value[0..4], self.endianness).unwrap()),
             'X' => write!(f, "{}", bytes_to_i64(&self.raw_value[0..8], self.endianness).unwrap()),
