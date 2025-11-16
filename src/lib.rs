@@ -56,6 +56,37 @@ pub enum Error {
     BluejayConfigError,
 }
 
+impl std::error::Error for Error {}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Error::NotBlueFileError => f.write_str("NotBlueFileError"),
+            Error::TypeCodeMismatchError => f.write_str("TypeCodeMismatchError"),
+            Error::UnknownRankError => f.write_str("UnknownRankError"),
+            Error::UnknownFormatError => f.write_str("UnknownFormatError"),
+            Error::UnknownDataTypeError => f.write_str("UnknownDataTypeError"),
+            Error::InvalidEndianness => f.write_str("InvalidEndianness"),
+            Error::ByteConversionError => f.write_str("ByteConversionError"),
+            Error::FileOpenError(e) => write!(f, "FileOpenError: {}", e),
+            Error::FileReadError => f.write_str("FileReadError"),
+            Error::NotEnoughHeaderBytes(_) => f.write_str("NotEnoughHeaderBytes"),
+            Error::NotEnoughAdjunctHeaderBytes(_) => f.write_str("NotEnoughAdjunctHeaderBytes"),
+            Error::UnknownFileTypeCode(e) => write!(f, "UnknownFileTypeCode: {}", e),
+            Error::InvalidHeaderKeywordLength(_) => f.write_str("InvalidHeaderKeywordLength"),
+            Error::HeaderSeekError => f.write_str("HeaderSeekError"),
+            Error::AdjunctHeaderSeekError => f.write_str("AdjunctHeaderSeekError"),
+            Error::ExtHeaderSeekError => f.write_str("ExtHeaderSeekError"),
+            Error::HeaderKeywordParseError => f.write_str("HeaderKeywordParseError"),
+            Error::HeaderKeywordLengthParseError => f.write_str("HeaderKeywordLengthParseError"),
+            Error::ExtHeaderKeywordLengthParseError => f.write_str("ExtHeaderKeywordLengthParseError"),
+            Error::ExtHeaderKeywordReadError => f.write_str("ExtHeaderKeywordReadError"),
+            Error::DataSeekError => f.write_str("DataSeekError"),
+            Error::BluejayConfigError => f.write_str("BluejayConfigError"),
+        }
+    }
+}
+
 
 /// Defines endianness type.
 #[derive(Clone, Copy, Debug, PartialEq)]
